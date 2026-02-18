@@ -169,18 +169,18 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.umd.js"></script>
+<script src="https://cdn.retellai.com/sdk/web/retell-web-sdk.js"></script>
 
 <script>
-  const WEBHOOK_URL = 'https://omni-channel-production-54be.up.railway.app/webhook/44548c65-7d4b-4a65-af38-c552a2f1f590';
+  const WEBHOOK_URL = 'https://omni-channel-production-54be.up.railway.app/chat';
   const PLAYER_ID = 'test_player_001';
 
   document.getElementById('input').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') sendMessage();
   });
 
-  // Voice call via Retell Web SDK (UMD build exposes retellClientJsSdk.RetellWebClient)
-  const client = new retellClientJsSdk.RetellWebClient();
+  // Voice call via Retell Web SDK
+  const client = new RetellWebClient();
   let onCall = false;
 
   async function toggleCall() {
@@ -249,8 +249,15 @@
     });
     
     const responseText = await res.text();
+    let response;
+    try {
+      const data = JSON.parse(responseText);
+      response = data.response || responseText;
+    } catch (e) {
+      response = responseText;
+    }
     document.getElementById('typing').remove();
-    messages.innerHTML += `<div class="message agent">${responseText}</div>`;
+    messages.innerHTML += `<div class="message agent">${response}</div>`;
     messages.scrollTop = messages.scrollHeight;
   }
 </script>

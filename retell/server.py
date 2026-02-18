@@ -46,6 +46,44 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def _role_to_openai(role: str) -> str:
+    if role == "agent":
+        return "assistant"
+    if role == "assistant":
+        return "assistant"
+    return "user"
+
+
+def get_player_messages(player_id: str, limit: int = 10) -> list[dict]:
+    """
+    Returns last messages in OpenAI format: [{"role": "...", "content": "..."}]
+    """
+    try:
+        result = supabase.table("player_sessions") \
+            .select("*") \
+            .eq("player_id", player_id) \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .execute()
+
+        if not result.data:
+            return []
+
+        # Supabase returns newest first; reverse to chronological.
+        msgs = []
+        for row in reversed(result.data):
+            content = row.get("message") or ""
+            if not content:
+                continue
+            msgs.append({
+                "role": _role_to_openai(row.get("role", "user")),
+                "content": content
+            })
+        return msgs
+    except Exception as e:
+        print(f"Supabase error (messages): {e}")
+        return []
+
 def get_player_context(player_id: str) -> str:
     try:
         result = supabase.table("player_sessions") \
@@ -167,6 +205,45 @@ async def create_call(request: web.Request) -> web.StreamResponse:
         return _corsify(web.json_response({"error": str(e)}, status=500))
 
 
+async def chat(request: web.Request) -> web.StreamResponse:
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    try:
+        payload = await request.json()
+    except Exception:
+        return _corsify(web.json_response({"error": "Invalid JSON body"}, status=400))
+
+    player_id = payload.get("player_id")
+    message = payload.get("message")
+    if not player_id or not isinstance(player_id, str):
+        return _corsify(web.json_response({"error": "player_id is required"}, status=400))
+    if not message or not isinstance(message, str):
+        return _corsify(web.json_response({"error": "message is required"}, status=400))
+
+    # Persist user message first
+    save_message(player_id, "user", message, channel="web")
+
+    history = get_player_messages(player_id, limit=10)
+
+    system_prompt = """You are a professional iGaming customer support agent.
+Keep responses under 2 sentences. Be warm, professional, and concise.
+If the player is asking about account, payments, bonuses, withdrawals, or verification, ask only the minimum necessary questions."""
+
+    try:
+        response = await generate_response(
+            [{"role": "system", "content": system_prompt}]
+            + history
+            + [{"role": "user", "content": message}]
+        )
+    except Exception as e:
+        print(f"Chat generation failed: {e}")
+        return _corsify(web.json_response({"error": str(e)}, status=500))
+
+    save_message(player_id, "agent", response, channel="web")
+    return _corsify(web.json_response({"response": response}))
+
+
 async def llm_websocket(request: web.Request) -> web.StreamResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -261,6 +338,8 @@ async def main():
     app = web.Application()
     app.router.add_route("POST", "/create-call", create_call)
     app.router.add_route("OPTIONS", "/create-call", create_call)
+    app.router.add_route("POST", "/chat", chat)
+    app.router.add_route("OPTIONS", "/chat", chat)
     app.router.add_route("GET", "/llm-websocket/{call_id}", llm_websocket)
     runner = web.AppRunner(app)
     await runner.setup()
