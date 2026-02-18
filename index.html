@@ -1,265 +1,309 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Casino Support</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { 
-    font-family: 'Segoe UI', sans-serif; 
-    background: #1a1a2e; 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    height: 100vh; 
-  }
-  .chat-container {
-    width: 400px;
-    height: 600px;
-    background: #16213e;
-    border-radius: 16px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  .chat-header {
-    background: linear-gradient(135deg, #0f3460, #533483);
-    padding: 20px;
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .header-info {
-    flex: 1;
-    min-width: 0;
-  }
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .call-btn {
-    padding: 8px 12px;
-    border: none;
-    border-radius: 999px;
-    background: green;
-    color: white;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .call-btn:hover {
-    filter: brightness(1.05);
-  }
-  .call-status {
-    font-size: 11px;
-    color: #aaa;
-    margin-top: 2px;
-  }
-  .avatar {
-    width: 40px;
-    height: 40px;
-    background: #e94560;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-  }
-  .header-info h3 { font-size: 16px; }
-  .header-info span { font-size: 12px; opacity: 0.8; color: #00ff88; }
-  .messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .message {
-    max-width: 80%;
-    padding: 12px 16px;
-    border-radius: 16px;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-  .message.agent {
-    background: #0f3460;
-    color: white;
-    align-self: flex-start;
-    border-bottom-left-radius: 4px;
-  }
-  .message.user {
-    background: #533483;
-    color: white;
-    align-self: flex-end;
-    border-bottom-right-radius: 4px;
-  }
-  .typing {
-    background: #0f3460;
-    color: #888;
-    align-self: flex-start;
-    border-bottom-left-radius: 4px;
-    font-style: italic;
-  }
-  .chat-input {
-    padding: 16px;
-    background: #0f3460;
-    display: flex;
-    gap: 10px;
-  }
-  .chat-input input {
-    flex: 1;
-    padding: 12px 16px;
-    border-radius: 24px;
-    border: none;
-    background: #16213e;
-    color: white;
-    font-size: 14px;
-    outline: none;
-  }
-  .chat-input input::placeholder { color: #666; }
-  .chat-input button {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: none;
-    background: #e94560;
-    color: white;
-    cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .chat-input button:hover { background: #c73652; }
-  .player-id {
-    padding: 8px 20px;
-    background: #0a0a1a;
-    color: #666;
-    font-size: 11px;
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino Support</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .chat-container {
+      width: 400px;
+      height: 600px;
+      background: #16213e;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .chat-header {
+      background: linear-gradient(135deg, #0f3460, #533483);
+      padding: 20px;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .call-btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 999px;
+      background: green;
+      color: white;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .call-btn:hover {
+      filter: brightness(1.05);
+    }
+
+    .call-status {
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 2px;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      background: #e94560;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+
+    .header-info h3 {
+      font-size: 16px;
+    }
+
+    .header-info span {
+      font-size: 12px;
+      opacity: 0.8;
+      color: #00ff88;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.agent {
+      background: #0f3460;
+      color: white;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message.user {
+      background: #533483;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .typing {
+      background: #0f3460;
+      color: #888;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      font-style: italic;
+    }
+
+    .chat-input {
+      padding: 16px;
+      background: #0f3460;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 24px;
+      border: none;
+      background: #16213e;
+      color: white;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .chat-input input::placeholder {
+      color: #666;
+    }
+
+    .chat-input button {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: #e94560;
+      color: white;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chat-input button:hover {
+      background: #c73652;
+    }
+
+    .player-id {
+      padding: 8px 20px;
+      background: #0a0a1a;
+      color: #666;
+      font-size: 11px;
+    }
+  </style>
 </head>
+
 <body>
-<div class="chat-container">
-  <div class="chat-header">
-    <div class="avatar">AI</div>
-    <div class="header-info">
-      <div class="header-top">
-        <h3>Casino Support</h3>
-        <button id="callBtn" class="call-btn" onclick="toggleCall()">📞 Call</button>
+  <div class="chat-container">
+    <div class="chat-header">
+      <div class="avatar">AI</div>
+      <div class="header-info">
+        <div class="header-top">
+          <h3>Casino Support</h3>
+          <button id="callBtn" class="call-btn" onclick="toggleCall()">📞 Call</button>
+        </div>
+        <div id="callStatus" class="call-status">Call Ended</div>
+        <span>● Online</span>
       </div>
-      <div id="callStatus" class="call-status">Call Ended</div>
-      <span>● Online</span>
+    </div>
+    <div class="player-id">Player ID: <span id="pidDisplay">test_player_001</span></div>
+    <div class="messages" id="messages">
+      <div class="message agent">Welcome! I'm your personal support agent. How can I help you today?</div>
+    </div>
+    <div class="chat-input">
+      <input type="text" id="input" placeholder="Type your message..." />
+      <button onclick="sendMessage()">➤</button>
     </div>
   </div>
-  <div class="player-id">Player ID: <span id="pidDisplay">test_player_001</span></div>
-  <div class="messages" id="messages">
-    <div class="message agent">Welcome! I'm your personal support agent. How can I help you today?</div>
-  </div>
-  <div class="chat-input">
-    <input type="text" id="input" placeholder="Type your message..." />
-    <button onclick="sendMessage()">➤</button>
-  </div>
-</div>
 
-<script src="https://cdn.retellai.com/sdk/web/retell-web-sdk.js"></script>
+  <script>
+    const WEBHOOK_URL = 'https://omni-channel-production-54be.up.railway.app/chat';
+    const PLAYER_ID = 'test_player_001';
 
-<script>
-  const WEBHOOK_URL = 'https://omni-channel-production-54be.up.railway.app/chat';
-  const PLAYER_ID = 'test_player_001';
+    // Dynamically load the correct SDK
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.umd.js';
+    script.onload = function () {
+      window.retellClient = new retellClientJsSdk.RetellWebClient();
+    };
+    document.head.appendChild(script);
 
-  document.getElementById('input').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') sendMessage();
-  });
+    document.getElementById('input').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') sendMessage();
+    });
 
-  // Voice call via Retell Web SDK
-  const client = new RetellWebClient();
-  let onCall = false;
+    window.onCall = false;
 
-  async function toggleCall() {
-    if (!client) {
-      alert('Voice client not loaded. Check the Retell Web SDK script.');
-      return;
-    }
-    const callBtn = document.getElementById('callBtn');
-    const callStatus = document.getElementById('callStatus');
+    async function toggleCall() {
+      const client = window.retellClient;
+      if (!client) {
+        alert('SDK still loading, try again');
+        return;
+      }
+      const callBtn = document.getElementById('callBtn');
+      const callStatus = document.getElementById('callStatus');
 
-    if (onCall) {
-      client.stopCall();
-      onCall = false;
-      callBtn.textContent = '📞 Call';
-      callBtn.style.background = 'green';
-      callStatus.textContent = 'Call Ended';
-      return;
-    }
-
-    callStatus.textContent = 'Connecting...';
-
-    try {
-      const res = await fetch('https://omni-channel-production-54be.up.railway.app/create-call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-
-      await client.startCall({ accessToken: data.access_token });
-      onCall = true;
-      callBtn.textContent = '🔴 End Call';
-      callBtn.style.background = 'red';
-      callStatus.textContent = 'Connected';
-
-      client.on('call_ended', () => {
-        onCall = false;
+      if (window.onCall) {
+        client.stopCall();
+        window.onCall = false;
         callBtn.textContent = '📞 Call';
         callBtn.style.background = 'green';
         callStatus.textContent = 'Call Ended';
+        return;
+      }
+
+      callStatus.textContent = 'Connecting...';
+
+      try {
+        const res = await fetch('https://omni-channel-production-54be.up.railway.app/create-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        await client.startCall({ accessToken: data.access_token });
+        window.onCall = true;
+        callBtn.textContent = '🔴 End Call';
+        callBtn.style.background = 'red';
+        callStatus.textContent = 'Connected';
+
+        client.on('call_ended', () => {
+          window.onCall = false;
+          callBtn.textContent = '📞 Call';
+          callBtn.style.background = 'green';
+          callStatus.textContent = 'Call Ended';
+        });
+      } catch (e) {
+        window.onCall = false;
+        callBtn.textContent = '📞 Call';
+        callBtn.style.background = 'green';
+        callStatus.textContent = 'Failed';
+        console.error(e);
+        alert('Call failed: ' + e.message);
+      }
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('input');
+      const messages = document.getElementById('messages');
+      const text = input.value.trim();
+      if (!text) return;
+
+      messages.innerHTML += `<div class="message user">${text}</div>`;
+      input.value = '';
+      messages.innerHTML += `<div class="message typing" id="typing">Agent is typing...</div>`;
+      messages.scrollTop = messages.scrollHeight;
+
+      const res = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: PLAYER_ID, message: text })
       });
-    } catch (e) {
-      onCall = false;
-      callBtn.textContent = '📞 Call';
-      callBtn.style.background = 'green';
-      callStatus.textContent = 'Call Ended';
-      console.error(e);
-      alert('Call failed to start. Check the backend /create-call endpoint.');
+
+      const responseText = await res.text();
+      let response;
+      try {
+        const data = JSON.parse(responseText);
+        response = data.response || responseText;
+      } catch (e) {
+        response = responseText;
+      }
+      document.getElementById('typing').remove();
+      messages.innerHTML += `<div class="message agent">${response}</div>`;
+      messages.scrollTop = messages.scrollHeight;
     }
-  }
-
-  async function sendMessage() {
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
-    const text = input.value.trim();
-    if (!text) return;
-
-    messages.innerHTML += `<div class="message user">${text}</div>`;
-    input.value = '';
-    messages.innerHTML += `<div class="message typing" id="typing">Agent is typing...</div>`;
-    messages.scrollTop = messages.scrollHeight;
-
-    const res = await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ player_id: PLAYER_ID, message: text })
-    });
-    
-    const responseText = await res.text();
-    let response;
-    try {
-      const data = JSON.parse(responseText);
-      response = data.response || responseText;
-    } catch (e) {
-      response = responseText;
-    }
-    document.getElementById('typing').remove();
-    messages.innerHTML += `<div class="message agent">${response}</div>`;
-    messages.scrollTop = messages.scrollHeight;
-  }
-</script>
+  </script>
 </body>
+
 </html>
