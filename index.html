@@ -207,17 +207,14 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { RetellWebClient } from 'https://cdn.jsdelivr.net/npm/retell-client-js-sdk@3/+esm';
+
     const WEBHOOK_URL = 'https://omni-channel-production-54be.up.railway.app/chat';
     const PLAYER_ID = 'test_player_001';
 
-    // Dynamically load the correct SDK
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.umd.js';
-    script.onload = function () {
-      window.retellClient = new retellClientJsSdk.RetellWebClient();
-    };
-    document.head.appendChild(script);
+    // Initialize Retell client
+    window.retellClient = new RetellWebClient();
 
     document.getElementById('input').addEventListener('keypress', function (e) {
       if (e.key === 'Enter') sendMessage();
@@ -225,7 +222,7 @@
 
     window.onCall = false;
 
-    async function toggleCall() {
+    window.toggleCall = async function() {
       const client = window.retellClient;
       if (!client) {
         alert('SDK still loading, try again');
@@ -274,7 +271,7 @@
       }
     }
 
-    async function sendMessage() {
+    window.sendMessage = async function() {
       const input = document.getElementById('input');
       const messages = document.getElementById('messages');
       const text = input.value.trim();
