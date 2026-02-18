@@ -191,7 +191,7 @@
       <div class="header-info">
         <div class="header-top">
           <h3>Casino Support</h3>
-          <button id="callBtn" class="call-btn" onclick="toggleCall()">📞 Call</button>
+          <button id="callBtn" class="call-btn">📞 Call</button>
         </div>
         <div id="callStatus" class="call-status">Call Ended</div>
         <span>● Online</span>
@@ -203,7 +203,7 @@
     </div>
     <div class="chat-input">
       <input type="text" id="input" placeholder="Type your message..." />
-      <button onclick="sendMessage()">➤</button>
+      <button id="sendBtn">➤</button>
     </div>
   </div>
 
@@ -214,26 +214,17 @@
     const PLAYER_ID = 'test_player_001';
 
     // Initialize Retell client
-    window.retellClient = new RetellWebClient();
+    const retellClient = new RetellWebClient();
 
-    document.getElementById('input').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') sendMessage();
-    });
+    let onCall = false;
 
-    window.onCall = false;
-
-    window.toggleCall = async function() {
-      const client = window.retellClient;
-      if (!client) {
-        alert('SDK still loading, try again');
-        return;
-      }
+    async function toggleCall() {
       const callBtn = document.getElementById('callBtn');
       const callStatus = document.getElementById('callStatus');
 
-      if (window.onCall) {
-        client.stopCall();
-        window.onCall = false;
+      if (onCall) {
+        retellClient.stopCall();
+        onCall = false;
         callBtn.textContent = '📞 Call';
         callBtn.style.background = 'green';
         callStatus.textContent = 'Call Ended';
@@ -249,20 +240,20 @@
         });
         const data = await res.json();
 
-        await client.startCall({ accessToken: data.access_token });
-        window.onCall = true;
+        await retellClient.startCall({ accessToken: data.access_token });
+        onCall = true;
         callBtn.textContent = '🔴 End Call';
         callBtn.style.background = 'red';
         callStatus.textContent = 'Connected';
 
-        client.on('call_ended', () => {
-          window.onCall = false;
+        retellClient.on('call_ended', () => {
+          onCall = false;
           callBtn.textContent = '📞 Call';
           callBtn.style.background = 'green';
           callStatus.textContent = 'Call Ended';
         });
       } catch (e) {
-        window.onCall = false;
+        onCall = false;
         callBtn.textContent = '📞 Call';
         callBtn.style.background = 'green';
         callStatus.textContent = 'Failed';
@@ -271,7 +262,7 @@
       }
     }
 
-    window.sendMessage = async function() {
+    async function sendMessage() {
       const input = document.getElementById('input');
       const messages = document.getElementById('messages');
       const text = input.value.trim();
@@ -300,6 +291,13 @@
       messages.innerHTML += `<div class="message agent">${response}</div>`;
       messages.scrollTop = messages.scrollHeight;
     }
+
+    // Attach event listeners
+    document.getElementById('callBtn').addEventListener('click', toggleCall);
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
   </script>
 </body>
 
