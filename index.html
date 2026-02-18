@@ -172,7 +172,7 @@
 <script src="https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/dist/index.umd.js"></script>
 
 <script>
-  const WEBHOOK_URL = 'https://3d41-2001-861-64d0-be0-84ba-5d12-7963-52a7.ngrok-free.app/webhook/44548c65-7d4b-4a65-af38-c552a2f1f590';
+  const WEBHOOK_URL = 'https://omni-channel-production-54be.up.railway.app/webhook/44548c65-7d4b-4a65-af38-c552a2f1f590';
   const PLAYER_ID = 'test_player_001';
 
   document.getElementById('input').addEventListener('keypress', function(e) {
@@ -203,7 +203,7 @@
     callStatus.textContent = 'Connecting...';
 
     try {
-      const res = await fetch('http://localhost:8080/create-call', {
+      const res = await fetch('https://omni-channel-production-54be.up.railway.app/create-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
