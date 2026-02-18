@@ -117,6 +117,7 @@ def save_message(player_id: str, role: str, message: str, channel: str = "voice"
         print(f"Save error: {e}")
 
 async def generate_response(messages: list) -> str:
+    """Non-streaming version for chat endpoint."""
     import httpx
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -156,6 +157,78 @@ async def generate_response(messages: list) -> str:
             raise RuntimeError(f"OpenAI response missing choices: {data}")
 
         return choices[0]["message"]["content"]
+
+
+async def generate_response_streaming(messages: list, ws, response_id: int) -> str:
+    """
+    Streaming version for Retell Custom LLM.
+    Streams tokens directly to the WebSocket and returns the full response.
+    """
+    import httpx
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set (check your .env loading).")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "gpt-4o",
+        "messages": messages,
+        "max_tokens": 150,
+        "stream": True
+    }
+
+    full_response = ""
+
+    async with httpx.AsyncClient() as client:
+        async with client.stream(
+            "POST",
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        ) as res:
+            if res.status_code >= 400:
+                error_body = await res.aread()
+                raise RuntimeError(f"OpenAI API error (HTTP {res.status_code}): {error_body.decode()}")
+
+            async for line in res.aiter_lines():
+                if not line:
+                    continue
+                if not line.startswith("data: "):
+                    continue
+
+                data_str = line[6:]  # Remove "data: " prefix
+                if data_str == "[DONE]":
+                    break
+
+                try:
+                    data = json.loads(data_str)
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content", "")
+
+                    if content:
+                        full_response += content
+                        # Stream this chunk to Retell
+                        await ws.send_str(json.dumps({
+                            "response_id": response_id,
+                            "content": content,
+                            "content_complete": False
+                        }))
+                except json.JSONDecodeError:
+                    continue
+
+    # Send completion signal to Retell
+    await ws.send_str(json.dumps({
+        "response_id": response_id,
+        "content": "",
+        "content_complete": True
+    }))
+
+    return full_response
 
 def _corsify(resp: web.StreamResponse) -> web.StreamResponse:
     resp.headers["Access-Control-Allow-Origin"] = "*"
@@ -244,6 +317,31 @@ If the player is asking about account, payments, bonuses, withdrawals, or verifi
     return _corsify(web.json_response({"response": response}))
 
 
+async def stream_text_to_retell(ws, text: str, response_id: int):
+    """
+    Stream a pre-generated text to Retell token by token.
+    Used for greetings or fallback responses.
+    """
+    words = text.split(" ")
+    for i, word in enumerate(words):
+        # Add space before word (except first word)
+        chunk = word if i == 0 else " " + word
+        await ws.send_str(json.dumps({
+            "response_id": response_id,
+            "content": chunk,
+            "content_complete": False
+        }))
+        # Small delay to simulate natural speech pacing
+        await asyncio.sleep(0.05)
+
+    # Send completion signal
+    await ws.send_str(json.dumps({
+        "response_id": response_id,
+        "content": "",
+        "content_complete": True
+    }))
+
+
 async def llm_websocket(request: web.Request) -> web.StreamResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -255,19 +353,8 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
     context = get_player_context(call_id)
     print(f"Context loaded: {context[:100]}")
 
-    # Small delay before first send (Retell timing)
-    await asyncio.sleep(1)
-
-    greeting = "Hello! Welcome to Casino Support. How can I help you today?"
-    print(f"Sending greeting: {greeting}")
-    try:
-        await ws.send_str(json.dumps({
-            "response_id": 0,
-            "response_type": "response",
-            "transcript": [{"role": "agent", "content": greeting}],
-        }))
-    except Exception as e:
-        print(f"Failed to send greeting: {e}")
+    # Track if we've sent initial greeting
+    greeting_sent = False
 
     try:
         async for msg in ws:
@@ -282,46 +369,80 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
 
             data = json.loads(message_text)
             interaction_type = data.get("interaction_type")
+            response_id = data.get("response_id", 0)
             print(f"Received event: {interaction_type}")
             print(f"Full data: {json.dumps(data)[:300]}")
 
-            if interaction_type in ["call_started", "response_required"]:
-                response_id = data.get("response_id", 0)
+            if interaction_type == "call_details":
+                # Retell sends call_details first - we can prepare but don't respond yet
+                print("Received call_details, waiting for response_required...")
+                continue
+
+            if interaction_type == "ping_pong":
+                # Respond to keep-alive pings
+                await ws.send_str(json.dumps({
+                    "response_type": "ping_pong",
+                    "timestamp": data.get("timestamp", 0)
+                }))
+                continue
+
+            if interaction_type == "update_only":
+                # Just a transcript update, no response needed
+                continue
+
+            if interaction_type == "response_required":
                 transcript = data.get("transcript", [])
 
+                # Find the last user message
                 last_user_msg = ""
                 for t in reversed(transcript):
                     if t.get("role") == "user":
                         last_user_msg = t.get("content", "")
                         break
 
+                # If no user message yet, send greeting
+                if not last_user_msg and not greeting_sent:
+                    greeting = "Hello! Welcome to Casino Support. How can I help you today?"
+                    print(f"Streaming greeting: {greeting}")
+                    await stream_text_to_retell(ws, greeting, response_id)
+                    save_message(call_id, "agent", greeting)
+                    greeting_sent = True
+                    continue
+
                 if last_user_msg:
                     save_message(call_id, "user", last_user_msg)
+                    greeting_sent = True  # User spoke, so greeting phase is over
 
                 prompt = last_user_msg if last_user_msg else "greet the player warmly"
 
-                # Refresh context each turn to include newly saved messages
+                # Refresh context each turn
                 context = get_player_context(call_id)
 
-                response = await generate_response([
-                    {
-                        "role": "system",
-                        "content": f"""You are a professional iGaming voice support agent.
+                print(f"Generating streaming response for: {prompt[:50]}...")
+
+                try:
+                    response = await generate_response_streaming(
+                        [
+                            {
+                                "role": "system",
+                                "content": f"""You are a professional iGaming voice support agent.
 Keep responses under 2 sentences.
 Player history:
 {context}"""
-                    },
-                    {"role": "user", "content": prompt}
-                ])
+                            },
+                            {"role": "user", "content": prompt}
+                        ],
+                        ws,
+                        response_id
+                    )
+                    print(f"Streamed response: {response}")
+                    save_message(call_id, "agent", response)
+                except Exception as e:
+                    print(f"Streaming error: {e}")
+                    # Fallback: stream an error message
+                    fallback = "I apologize, I'm having trouble right now. Please try again."
+                    await stream_text_to_retell(ws, fallback, response_id)
 
-                print(f"Sending response: {response}")
-                save_message(call_id, "agent", response)
-
-                await ws.send_str(json.dumps({
-                    "response_id": response_id,
-                    "response_type": "response",
-                    "transcript": [{"role": "agent", "content": response}],
-                }))
     except Exception as e:
         print(f"Error: {e}")
         import traceback
