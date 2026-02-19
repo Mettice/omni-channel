@@ -1,0 +1,87 @@
+{
+  "name": "Bonus Status Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bonus-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "id": "webhook-bonus",
+      "name": "Bonus Status Webhook",
+      "webhookId": "bonus-status"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "player_id",
+              "value": "={{ $json.body.player_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "set-fields",
+      "name": "Extract Player ID"
+    },
+    {
+      "parameters": {
+        "url": "=https://your-crm-api.com/api/players/{{ $json.player_id }}/bonuses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_CRM_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [440, 0],
+      "id": "fetch-bonuses",
+      "name": "Fetch Player Bonuses (CRM)"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [660, 0],
+      "id": "respond",
+      "name": "Return Bonus Data"
+    }
+  ],
+  "connections": {
+    "Bonus Status Webhook": {
+      "main": [[{"node": "Extract Player ID", "type": "main", "index": 0}]]
+    },
+    "Extract Player ID": {
+      "main": [[{"node": "Fetch Player Bonuses (CRM)", "type": "main", "index": 0}]]
+    },
+    "Fetch Player Bonuses (CRM)": {
+      "main": [[{"node": "Return Bonus Data", "type": "main", "index": 0}]]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

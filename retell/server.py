@@ -46,6 +46,206 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# n8n Webhook URLs (configure per client)
+N8N_WEBHOOK_BASE = os.environ.get("N8N_WEBHOOK_BASE", "")  # e.g., "https://your-n8n.com/webhook"
+
+# Domain/Industry configuration (loaded from environment or config file)
+DOMAIN = os.environ.get("DOMAIN", "generic")  # e.g., "igaming", "ecommerce", "healthcare", "fintech"
+
+# System prompts per domain
+SYSTEM_PROMPTS = {
+    "igaming": """You are a professional customer support agent.
+Keep responses under 2 sentences. Be warm, professional, and concise.
+Help customers with their inquiries efficiently.""",
+
+    "ecommerce": """You are a friendly e-commerce customer support agent.
+Keep responses under 2 sentences. Be helpful and solution-oriented.
+Help with: orders, shipping, returns, refunds, product questions, account issues.""",
+
+    "healthcare": """You are a professional healthcare scheduling assistant.
+Keep responses under 2 sentences. Be empathetic and clear.
+Help with: appointments, scheduling, prescription refills, general inquiries.
+Never provide medical advice - always direct to healthcare providers.""",
+
+    "fintech": """You are a professional banking support assistant.
+Keep responses under 2 sentences. Be secure-minded and precise.
+Help with: account inquiries, transactions, card issues, payments.
+Never share or ask for full account numbers or passwords.""",
+
+    "realestate": """You are a professional real estate assistant.
+Keep responses under 2 sentences. Be knowledgeable and helpful.
+Help with: property inquiries, scheduling viewings, pricing questions, neighborhood info.""",
+
+    "generic": """You are a professional customer support agent.
+Keep responses under 2 sentences. Be warm, professional, and concise.
+Help customers with their inquiries efficiently."""
+}
+
+# Intent patterns per domain (configurable per industry)
+DOMAIN_INTENTS = {
+    "igaming": {
+        "escalate": {
+            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone", "real person"],
+            "webhook": "/escalate"
+        },
+        "withdrawal": {
+            "keywords": ["withdraw", "withdrawal", "cash out", "payout", "my money"],
+            "webhook": "/withdrawal-status"
+        },
+        "bonus": {
+            "keywords": ["bonus", "promotion", "free spins", "offer", "reward"],
+            "webhook": "/bonus-status"
+        },
+        "verification": {
+            "keywords": ["verify", "verification", "kyc", "documents", "id", "identity"],
+            "webhook": "/verification-status"
+        }
+    },
+    "ecommerce": {
+        "escalate": {
+            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone"],
+            "webhook": "/escalate"
+        },
+        "order_status": {
+            "keywords": ["where is my order", "track", "shipping", "delivery", "package"],
+            "webhook": "/order-status"
+        },
+        "return": {
+            "keywords": ["return", "refund", "exchange", "send back", "money back"],
+            "webhook": "/return-request"
+        },
+        "cancel": {
+            "keywords": ["cancel", "cancel order", "don't want", "stop order"],
+            "webhook": "/cancel-order"
+        }
+    },
+    "healthcare": {
+        "escalate": {
+            "keywords": ["doctor", "nurse", "emergency", "urgent", "speak to someone"],
+            "webhook": "/escalate"
+        },
+        "appointment": {
+            "keywords": ["appointment", "schedule", "book", "available", "see doctor", "visit"],
+            "webhook": "/appointment"
+        },
+        "prescription": {
+            "keywords": ["prescription", "refill", "medication", "medicine", "pharmacy"],
+            "webhook": "/prescription"
+        },
+        "results": {
+            "keywords": ["results", "test results", "lab", "report"],
+            "webhook": "/results"
+        }
+    },
+    "fintech": {
+        "escalate": {
+            "keywords": ["manager", "human", "supervisor", "complaint", "fraud", "unauthorized"],
+            "webhook": "/escalate"
+        },
+        "balance": {
+            "keywords": ["balance", "how much", "available", "account balance"],
+            "webhook": "/balance"
+        },
+        "transaction": {
+            "keywords": ["transaction", "payment", "transfer", "sent", "received"],
+            "webhook": "/transaction"
+        },
+        "card": {
+            "keywords": ["card", "lost card", "stolen", "block card", "new card"],
+            "webhook": "/card-issue"
+        }
+    },
+    "realestate": {
+        "escalate": {
+            "keywords": ["manager", "human", "agent", "speak to someone"],
+            "webhook": "/escalate"
+        },
+        "viewing": {
+            "keywords": ["view", "visit", "see property", "tour", "showing", "schedule"],
+            "webhook": "/schedule-viewing"
+        },
+        "pricing": {
+            "keywords": ["price", "cost", "how much", "afford", "mortgage", "financing"],
+            "webhook": "/pricing-inquiry"
+        },
+        "availability": {
+            "keywords": ["available", "still available", "sold", "rent", "lease"],
+            "webhook": "/availability"
+        }
+    },
+    "generic": {
+        "escalate": {
+            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone", "real person"],
+            "webhook": "/escalate"
+        }
+    }
+}
+
+def get_system_prompt(player_id: str = "", context: str = "") -> str:
+    """Get the system prompt for the current domain."""
+    base_prompt = SYSTEM_PROMPTS.get(DOMAIN, SYSTEM_PROMPTS["generic"])
+    if context:
+        return f"{base_prompt}\n\nCustomer history:\n{context}"
+    return base_prompt
+
+def get_intent_patterns() -> dict:
+    """Get intent patterns for the current domain."""
+    return DOMAIN_INTENTS.get(DOMAIN, DOMAIN_INTENTS["generic"])
+
+# Greetings per domain
+DOMAIN_GREETINGS = {
+    "igaming": "Hello! Welcome to support. How can I help you today?",
+    "ecommerce": "Hi there! Thanks for calling. How can I help with your order today?",
+    "healthcare": "Hello, thank you for calling. How may I assist you with your healthcare needs today?",
+    "fintech": "Welcome to support. How can I assist you with your account today?",
+    "realestate": "Hi! Thanks for reaching out. Are you looking to buy, sell, or rent today?",
+    "generic": "Hello! How can I assist you today?"
+}
+
+def get_greeting() -> str:
+    """Get the greeting for the current domain."""
+    return DOMAIN_GREETINGS.get(DOMAIN, DOMAIN_GREETINGS["generic"])
+
+
+async def detect_and_trigger_intents(customer_id: str, message: str, channel: str = "voice") -> dict:
+    """
+    Detect intents in message and trigger corresponding n8n webhooks.
+    Returns dict of triggered intents and their responses.
+    """
+    if not N8N_WEBHOOK_BASE:
+        return {}
+
+    import httpx
+
+    message_lower = message.lower()
+    triggered = {}
+    intent_patterns = get_intent_patterns()
+
+    for intent_name, config in intent_patterns.items():
+        if any(keyword in message_lower for keyword in config["keywords"]):
+            webhook_url = f"{N8N_WEBHOOK_BASE}{config['webhook']}"
+            try:
+                async with httpx.AsyncClient() as client:
+                    res = await client.post(
+                        webhook_url,
+                        json={
+                            "customer_id": customer_id,
+                            "message": message,
+                            "channel": channel,
+                            "intent": intent_name,
+                            "domain": DOMAIN
+                        },
+                        timeout=5
+                    )
+                    if res.status_code == 200:
+                        triggered[intent_name] = res.text
+                        print(f"[{DOMAIN}] Triggered intent '{intent_name}' for customer {customer_id}")
+            except Exception as e:
+                print(f"n8n webhook error ({intent_name}): {e}")
+
+    return triggered
+
+
 def _role_to_openai(role: str) -> str:
     if role == "agent":
         return "assistant"
@@ -245,7 +445,18 @@ async def create_call(request: web.Request) -> web.StreamResponse:
     if not retell_api_key:
         return _corsify(web.json_response({"error": "RETELL_API_KEY is not set"}, status=500))
 
-    payload = {"agent_id": RETELL_AGENT_ID}
+    # Get customer_id from request body
+    customer_id = "unknown"
+    try:
+        body = await request.json()
+        customer_id = body.get("customer_id", "unknown")
+    except Exception:
+        pass
+
+    payload = {
+        "agent_id": RETELL_AGENT_ID,
+        "metadata": {"customer_id": customer_id}  # Pass to WebSocket via call_details
+    }
     headers = {
         "Authorization": f"Bearer {retell_api_key}",
         "Content-Type": "application/json",
@@ -299,13 +510,9 @@ async def chat(request: web.Request) -> web.StreamResponse:
 
     history = get_player_messages(player_id, limit=10)
 
-    system_prompt = """You are a professional iGaming customer support agent.
-Keep responses under 2 sentences. Be warm, professional, and concise.
-If the player is asking about account, payments, bonuses, withdrawals, or verification, ask only the minimum necessary questions."""
-
     try:
         response = await generate_response(
-            [{"role": "system", "content": system_prompt}]
+            [{"role": "system", "content": get_system_prompt()}]
             + history
             + [{"role": "user", "content": message}]
         )
@@ -314,6 +521,10 @@ If the player is asking about account, payments, bonuses, withdrawals, or verifi
         return _corsify(web.json_response({"error": str(e)}, status=500))
 
     save_message(player_id, "agent", response, channel="web")
+
+    # Trigger n8n workflows based on detected intents (runs in background)
+    asyncio.create_task(detect_and_trigger_intents(player_id, message, "chat"))
+
     return _corsify(web.json_response({"response": response}))
 
 
@@ -347,11 +558,9 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
     await ws.prepare(request)
 
     call_id = request.match_info.get("call_id", "unknown")
+    customer_id = None  # Will be set from call_details metadata
     print("New call connected")
     print(f"Call ID: {call_id}")
-
-    context = get_player_context(call_id)
-    print(f"Context loaded: {context[:100]}")
 
     # Track if we've sent initial greeting
     greeting_sent = False
@@ -374,8 +583,14 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
             print(f"Full data: {json.dumps(data)[:300]}")
 
             if interaction_type == "call_details":
-                # Retell sends call_details first - we can prepare but don't respond yet
-                print("Received call_details, waiting for response_required...")
+                # Extract customer_id from metadata (passed from create-call)
+                metadata = data.get("call", {}).get("metadata", {})
+                customer_id = metadata.get("customer_id", call_id)
+                print(f"Customer ID from metadata: {customer_id}")
+
+                # Load context for this customer
+                context = get_player_context(customer_id)
+                print(f"Context loaded: {context[:100] if context else 'No history'}")
                 continue
 
             if interaction_type == "ping_pong":
@@ -391,6 +606,9 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                 continue
 
             if interaction_type == "response_required":
+                # Use customer_id if set, otherwise fall back to call_id
+                cid = customer_id if customer_id else call_id
+
                 transcript = data.get("transcript", [])
 
                 # Find the last user message
@@ -402,33 +620,30 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
 
                 # If no user message yet, send greeting
                 if not last_user_msg and not greeting_sent:
-                    greeting = "Hello! Welcome to Casino Support. How can I help you today?"
-                    print(f"Streaming greeting: {greeting}")
+                    greeting = get_greeting()
+                    print(f"Streaming greeting to {cid}: {greeting}")
                     await stream_text_to_retell(ws, greeting, response_id)
-                    save_message(call_id, "agent", greeting)
+                    save_message(cid, "agent", greeting)
                     greeting_sent = True
                     continue
 
                 if last_user_msg:
-                    save_message(call_id, "user", last_user_msg)
+                    save_message(cid, "user", last_user_msg)
                     greeting_sent = True  # User spoke, so greeting phase is over
 
-                prompt = last_user_msg if last_user_msg else "greet the player warmly"
+                prompt = last_user_msg if last_user_msg else "greet the customer warmly"
 
                 # Refresh context each turn
-                context = get_player_context(call_id)
+                context = get_player_context(cid)
 
-                print(f"Generating streaming response for: {prompt[:50]}...")
+                print(f"Generating streaming response for {cid}: {prompt[:50]}...")
 
                 try:
                     response = await generate_response_streaming(
                         [
                             {
                                 "role": "system",
-                                "content": f"""You are a professional iGaming voice support agent.
-Keep responses under 2 sentences.
-Player history:
-{context}"""
+                                "content": get_system_prompt(cid, context)
                             },
                             {"role": "user", "content": prompt}
                         ],
@@ -436,7 +651,10 @@ Player history:
                         response_id
                     )
                     print(f"Streamed response: {response}")
-                    save_message(call_id, "agent", response)
+                    save_message(cid, "agent", response)
+
+                    # Trigger n8n workflows based on detected intents (runs in background)
+                    asyncio.create_task(detect_and_trigger_intents(cid, last_user_msg, "voice"))
                 except Exception as e:
                     print(f"Streaming error: {e}")
                     # Fallback: stream an error message
@@ -448,7 +666,8 @@ Player history:
         import traceback
         traceback.print_exc()
     finally:
-        print(f"Call ended: {call_id}")
+        cid = customer_id if customer_id else call_id
+        print(f"Call ended: {cid}")
         await ws.close()
 
     return ws

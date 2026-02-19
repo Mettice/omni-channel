@@ -1,0 +1,206 @@
+{
+  "name": "Escalation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "escalate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "id": "webhook-escalate",
+      "name": "Escalation Webhook",
+      "webhookId": "escalate"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "player_id",
+              "value": "={{ $json.body.player_id }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "message",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "channel",
+              "value": "={{ $json.body.channel }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "intent",
+              "value": "={{ $json.body.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "id": "set-fields",
+      "name": "Extract Fields"
+    },
+    {
+      "parameters": {
+        "url": "=https://dsoywpytpvxqpxiugopq.supabase.co/rest/v1/player_sessions?player_id=eq.{{ $json.player_id }}&order=created_at.desc&limit=5",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_SUPABASE_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SUPABASE_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [440, 0],
+      "id": "fetch-history",
+      "name": "Fetch Recent History"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://dsoywpytpvxqpxiugopq.supabase.co/rest/v1/escalations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_SUPABASE_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SUPABASE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"player_id\": \"{{ $('Extract Fields').item.json.player_id }}\",\n  \"channel\": \"{{ $('Extract Fields').item.json.channel }}\",\n  \"reason\": \"{{ $('Extract Fields').item.json.message }}\",\n  \"status\": \"pending\",\n  \"conversation_summary\": \"{{ JSON.stringify($json) }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [660, 0],
+      "id": "create-escalation",
+      "name": "Create Escalation Record"
+    },
+    {
+      "parameters": {
+        "channel": "#support-escalations",
+        "text": "=:rotating_light: *New Escalation*\n\n*Player ID:* {{ $('Extract Fields').item.json.player_id }}\n*Channel:* {{ $('Extract Fields').item.json.channel }}\n*Message:* {{ $('Extract Fields').item.json.message }}\n*Time:* {{ $('Extract Fields').item.json.timestamp }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [660, 200],
+      "id": "slack-notify",
+      "name": "Notify Slack",
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"escalated\", \"message\": \"Support team notified\" }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, 0],
+      "id": "respond",
+      "name": "Respond Success"
+    }
+  ],
+  "connections": {
+    "Escalation Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fields": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent History": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation Record",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Escalation Record": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
