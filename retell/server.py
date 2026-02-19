@@ -627,7 +627,7 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                 # If no user message yet, send greeting
                 if not last_user_msg and not greeting_sent:
                     greeting = get_greeting()
-                    print(f"Streaming greeting to {cid}: {greeting}")
+                    print(f"Streaming greeting to {customer_id}: {greeting}")
                     await stream_text_to_retell(ws, greeting, response_id)
                     save_message(customer_id, "agent", greeting)
                     greeting_sent = True
@@ -635,7 +635,7 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
 
                 # Get conversation history BEFORE saving new message
                 history = get_player_messages(customer_id, limit=10)
-                print(f"History loaded for {cid}: {len(history)} messages")
+                print(f"History loaded for {customer_id}: {len(history)} messages")
 
                 if last_user_msg:
                     save_message(customer_id, "user", last_user_msg)
