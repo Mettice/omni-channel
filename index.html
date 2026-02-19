@@ -297,10 +297,9 @@
       callStatus.textContent = 'Connecting...';
 
       try {
-        const res = await fetch('https://omni-channel-production-54be.up.railway.app/create-call', {
+        const res = await fetch(`https://omni-channel-production-54be.up.railway.app/create-call?customer_id=${SESSION_ID}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer_id: SESSION_ID })
+          headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
 

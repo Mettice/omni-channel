@@ -46,6 +46,10 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# In-memory mapping of Retell call_id -> customer_id
+# (For production, use Redis or database)
+CALL_CUSTOMER_MAP = {}
+
 # n8n Webhook URLs (configure per client)
 N8N_WEBHOOK_BASE = os.environ.get("N8N_WEBHOOK_BASE", "")  # e.g., "https://your-n8n.com/webhook"
 
@@ -446,17 +450,13 @@ async def create_call(request: web.Request) -> web.StreamResponse:
     if not retell_api_key:
         return _corsify(web.json_response({"error": "RETELL_API_KEY is not set"}, status=500))
 
-    # Get customer_id from request body
-    customer_id = "unknown"
-    try:
-        body = await request.json()
-        customer_id = body.get("customer_id", "unknown")
-    except Exception:
-        pass
+    # Get customer_id from query string
+    customer_id = request.query.get("customer_id", "unknown")
+    print(f"Creating call for customer: {customer_id}")
 
     payload = {
         "agent_id": RETELL_AGENT_ID,
-        "metadata": {"customer_id": customer_id}  # Pass to WebSocket via call_details
+        "metadata": {"customer_id": customer_id}
     }
     headers = {
         "Authorization": f"Bearer {retell_api_key}",
@@ -482,8 +482,15 @@ async def create_call(request: web.Request) -> web.StreamResponse:
                     return _corsify(web.json_response({"error": data}, status=resp.status))
 
                 access_token = data.get("access_token")
+                call_id = data.get("call_id")
+
                 if not access_token:
                     return _corsify(web.json_response({"error": "Missing access_token", "data": data}, status=500))
+
+                # Store mapping of call_id -> customer_id
+                if call_id:
+                    CALL_CUSTOMER_MAP[call_id] = customer_id
+                    print(f"Mapped call {call_id} -> customer {customer_id}")
 
                 return _corsify(web.json_response({"access_token": access_token}))
     except Exception as e:
@@ -559,9 +566,16 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
     await ws.prepare(request)
 
     call_id = request.match_info.get("call_id", "unknown")
-    customer_id = None  # Will be set from call_details metadata
-    print("New call connected")
+
+    # Look up customer_id from our mapping
+    customer_id = CALL_CUSTOMER_MAP.get(call_id, call_id)
+    print(f"=== NEW CALL ===")
     print(f"Call ID: {call_id}")
+    print(f"Customer ID: {customer_id}")
+
+    # Load history for this customer
+    history = get_player_messages(customer_id, limit=10)
+    print(f"Loaded {len(history)} messages from history")
 
     # Track if we've sent initial greeting
     greeting_sent = False
@@ -584,25 +598,8 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
             print(f"Full data: {json.dumps(data)[:300]}")
 
             if interaction_type == "call_details":
-                # Extract customer_id from metadata (passed from create-call)
-                call_data = data.get("call", {})
-                metadata = call_data.get("metadata", {})
-                customer_id = metadata.get("customer_id")
-
-                print(f"=== CALL DETAILS ===")
-                print(f"Call data keys: {call_data.keys()}")
-                print(f"Metadata: {metadata}")
-                print(f"Customer ID extracted: {customer_id}")
-
-                if not customer_id:
-                    customer_id = call_id
-                    print(f"No customer_id in metadata, using call_id: {call_id}")
-
-                # Test loading history
-                test_history = get_player_messages(customer_id, limit=5)
-                print(f"Test history for {customer_id}: {len(test_history)} messages")
-                if test_history:
-                    print(f"Recent: {test_history[-1] if test_history else 'none'}")
+                # We already have customer_id from the mapping, just log
+                print(f"Received call_details event")
                 continue
 
             if interaction_type == "ping_pong":
@@ -618,9 +615,6 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                 continue
 
             if interaction_type == "response_required":
-                # Use customer_id if set, otherwise fall back to call_id
-                cid = customer_id if customer_id else call_id
-
                 transcript = data.get("transcript", [])
 
                 # Find the last user message
@@ -635,21 +629,21 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                     greeting = get_greeting()
                     print(f"Streaming greeting to {cid}: {greeting}")
                     await stream_text_to_retell(ws, greeting, response_id)
-                    save_message(cid, "agent", greeting)
+                    save_message(customer_id, "agent", greeting)
                     greeting_sent = True
                     continue
 
                 # Get conversation history BEFORE saving new message
-                history = get_player_messages(cid, limit=10)
+                history = get_player_messages(customer_id, limit=10)
                 print(f"History loaded for {cid}: {len(history)} messages")
 
                 if last_user_msg:
-                    save_message(cid, "user", last_user_msg)
+                    save_message(customer_id, "user", last_user_msg)
                     greeting_sent = True  # User spoke, so greeting phase is over
 
                 prompt = last_user_msg if last_user_msg else "greet the customer warmly"
 
-                print(f"Generating streaming response for {cid}: {prompt[:50]}...")
+                print(f"Generating streaming response for {customer_id}: {prompt[:50]}...")
 
                 try:
                     # Build messages: system + history + current user message
@@ -663,10 +657,10 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                         response_id
                     )
                     print(f"Streamed response: {response}")
-                    save_message(cid, "agent", response)
+                    save_message(customer_id, "agent", response)
 
                     # Trigger n8n workflows based on detected intents (runs in background)
-                    asyncio.create_task(detect_and_trigger_intents(cid, last_user_msg, "voice"))
+                    asyncio.create_task(detect_and_trigger_intents(customer_id, last_user_msg, "voice"))
                 except Exception as e:
                     print(f"Streaming error: {e}")
                     # Fallback: stream an error message
@@ -678,8 +672,10 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
         import traceback
         traceback.print_exc()
     finally:
-        cid = customer_id if customer_id else call_id
-        print(f"Call ended: {cid}")
+        # Clean up the mapping
+        if call_id in CALL_CUSTOMER_MAP:
+            del CALL_CUSTOMER_MAP[call_id]
+        print(f"Call ended: {customer_id}")
         await ws.close()
 
     return ws
