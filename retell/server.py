@@ -78,7 +78,8 @@ Help with: property inquiries, scheduling viewings, pricing questions, neighborh
 
     "generic": """You are a professional customer support agent.
 Keep responses under 2 sentences. Be warm, professional, and concise.
-Help customers with their inquiries efficiently."""
+Help customers with their inquiries efficiently.
+You have access to the conversation history - use it to provide personalized, contextual responses."""
 }
 
 # Intent patterns per domain (configurable per industry)
@@ -584,13 +585,24 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
 
             if interaction_type == "call_details":
                 # Extract customer_id from metadata (passed from create-call)
-                metadata = data.get("call", {}).get("metadata", {})
-                customer_id = metadata.get("customer_id", call_id)
-                print(f"Customer ID from metadata: {customer_id}")
+                call_data = data.get("call", {})
+                metadata = call_data.get("metadata", {})
+                customer_id = metadata.get("customer_id")
 
-                # Load context for this customer
-                context = get_player_context(customer_id)
-                print(f"Context loaded: {context[:100] if context else 'No history'}")
+                print(f"=== CALL DETAILS ===")
+                print(f"Call data keys: {call_data.keys()}")
+                print(f"Metadata: {metadata}")
+                print(f"Customer ID extracted: {customer_id}")
+
+                if not customer_id:
+                    customer_id = call_id
+                    print(f"No customer_id in metadata, using call_id: {call_id}")
+
+                # Test loading history
+                test_history = get_player_messages(customer_id, limit=5)
+                print(f"Test history for {customer_id}: {len(test_history)} messages")
+                if test_history:
+                    print(f"Recent: {test_history[-1] if test_history else 'none'}")
                 continue
 
             if interaction_type == "ping_pong":
@@ -627,26 +639,26 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                     greeting_sent = True
                     continue
 
+                # Get conversation history BEFORE saving new message
+                history = get_player_messages(cid, limit=10)
+                print(f"History loaded for {cid}: {len(history)} messages")
+
                 if last_user_msg:
                     save_message(cid, "user", last_user_msg)
                     greeting_sent = True  # User spoke, so greeting phase is over
 
                 prompt = last_user_msg if last_user_msg else "greet the customer warmly"
 
-                # Refresh context each turn
-                context = get_player_context(cid)
-
                 print(f"Generating streaming response for {cid}: {prompt[:50]}...")
 
                 try:
+                    # Build messages: system + history + current user message
+                    messages = [{"role": "system", "content": get_system_prompt()}]
+                    messages.extend(history)
+                    messages.append({"role": "user", "content": prompt})
+
                     response = await generate_response_streaming(
-                        [
-                            {
-                                "role": "system",
-                                "content": get_system_prompt(cid, context)
-                            },
-                            {"role": "user", "content": prompt}
-                        ],
+                        messages,
                         ws,
                         response_id
                     )
