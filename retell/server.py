@@ -80,10 +80,27 @@ Never share or ask for full account numbers or passwords.""",
 Keep responses under 2 sentences. Be knowledgeable and helpful.
 Help with: property inquiries, scheduling viewings, pricing questions, neighborhood info.""",
 
-    "generic": """You are a professional customer support agent.
-Keep responses under 2 sentences. Be warm, professional, and concise.
-Help customers with their inquiries efficiently.
-You have access to the conversation history - use it to provide personalized, contextual responses."""
+    "generic": """You are Omni, an AI voice and chat assistant built to demonstrate what AI customer support can do.
+
+When someone calls to TEST or asks what you can do, explain these capabilities:
+- Voice calls AND web chat with shared memory across channels
+- Book appointments directly into Google Calendar, Calendly, or your scheduling system
+- Sync contacts to CRMs like GoHighLevel, HubSpot, Salesforce, Zendesk
+- Auto-text customers who miss calls via SMS
+- WhatsApp, Telegram, Instagram DMs, Email - we can add any channel
+- Works 24/7, speaks naturally, remembers every conversation
+
+If they ask about CHANNELS or INTEGRATIONS:
+- We support voice, web chat, SMS, WhatsApp, Telegram, Instagram, Facebook Messenger, Email
+- We integrate with any CRM or calendar system
+- "What channels or systems do you currently use? We can connect to those."
+
+If they ask about PRICING or want to BUY:
+- Say "I can connect you with Dion to discuss pricing and setup for your business. Would you like to share your contact info?"
+- Collect their name, email, phone, and business name if they agree
+
+For regular support questions, be helpful and concise.
+You remember the full conversation history across all channels."""
 }
 
 # Intent patterns per domain (configurable per industry)
@@ -129,9 +146,9 @@ DOMAIN_INTENTS = {
             "keywords": ["doctor", "nurse", "emergency", "urgent", "speak to someone"],
             "webhook": "/escalate"
         },
-        "appointment": {
-            "keywords": ["appointment", "schedule", "book", "available", "see doctor", "visit"],
-            "webhook": "/appointment"
+        "book_appointment": {
+            "keywords": ["appointment", "schedule", "book", "available", "see doctor", "visit", "consultation", "checkup"],
+            "webhook": "/book-appointment"
         },
         "prescription": {
             "keywords": ["prescription", "refill", "medication", "medicine", "pharmacy"],
@@ -140,6 +157,10 @@ DOMAIN_INTENTS = {
         "results": {
             "keywords": ["results", "test results", "lab", "report"],
             "webhook": "/results"
+        },
+        "contact_info": {
+            "keywords": ["call me back", "my number is", "my phone", "contact me", "reach me"],
+            "webhook": "/ghl-contact"
         }
     },
     "fintech": {
@@ -165,9 +186,9 @@ DOMAIN_INTENTS = {
             "keywords": ["manager", "human", "agent", "speak to someone"],
             "webhook": "/escalate"
         },
-        "viewing": {
-            "keywords": ["view", "visit", "see property", "tour", "showing", "schedule"],
-            "webhook": "/schedule-viewing"
+        "book_appointment": {
+            "keywords": ["view", "visit", "see property", "tour", "showing", "schedule", "book", "appointment"],
+            "webhook": "/book-appointment"
         },
         "pricing": {
             "keywords": ["price", "cost", "how much", "afford", "mortgage", "financing"],
@@ -176,12 +197,24 @@ DOMAIN_INTENTS = {
         "availability": {
             "keywords": ["available", "still available", "sold", "rent", "lease"],
             "webhook": "/availability"
+        },
+        "contact_info": {
+            "keywords": ["call me back", "my number is", "my phone", "my email", "contact me"],
+            "webhook": "/ghl-contact"
         }
     },
     "generic": {
         "escalate": {
             "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone", "real person"],
             "webhook": "/escalate"
+        },
+        "book_appointment": {
+            "keywords": ["book", "appointment", "schedule", "available", "calendar", "slot", "meeting", "consultation"],
+            "webhook": "/book-appointment"
+        },
+        "contact_info": {
+            "keywords": ["call me back", "my number is", "my email is", "contact me", "reach me"],
+            "webhook": "/ghl-contact"
         }
     }
 }
@@ -204,7 +237,7 @@ DOMAIN_GREETINGS = {
     "healthcare": "Hello, thank you for calling. How may I assist you with your healthcare needs today?",
     "fintech": "Welcome to support. How can I assist you with your account today?",
     "realestate": "Hi! Thanks for reaching out. Are you looking to buy, sell, or rent today?",
-    "generic": "Hello! How can I assist you today?"
+    "generic": "Hi! I'm Omni, an AI assistant that handles voice and chat support. Feel free to test me out, or ask what I can do for your business!"
 }
 
 def get_greeting() -> str:

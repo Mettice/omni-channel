@@ -1,0 +1,232 @@
+{
+  "name": "Twilio SMS - Send & Missed Call Text-back",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-sms",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Send SMS Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "typeVersion": 2.1,
+      "webhookId": "send-sms"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "to_phone",
+              "value": "={{ $json.body.to_phone }}",
+              "type": "string"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            },
+            {
+              "name": "customer_id",
+              "value": "={{ $json.body.customer_id || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extract SMS Data",
+      "type": "n8n-nodes-base.set",
+      "position": [250, 0],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "from": "={{ $env.TWILIO_PHONE_NUMBER }}",
+        "to": "={{ $json.to_phone }}",
+        "message": "={{ $json.message }}"
+      },
+      "name": "Send SMS",
+      "type": "n8n-nodes-base.twilio",
+      "position": [500, 0],
+      "typeVersion": 1,
+      "credentials": {
+        "twilioApi": {
+          "id": "YOUR_TWILIO_CREDENTIAL_ID",
+          "name": "Twilio Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"sid\": \"{{ $json.sid }}\",\n  \"message\": \"SMS sent successfully\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "Respond SMS Sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [750, 0],
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "missed-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Missed Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 250],
+      "typeVersion": 2.1,
+      "webhookId": "missed-call"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "caller_phone",
+              "value": "={{ $json.body.From || $json.body.caller_phone }}",
+              "type": "string"
+            },
+            {
+              "name": "called_phone",
+              "value": "={{ $json.body.To || $json.body.called_phone }}",
+              "type": "string"
+            },
+            {
+              "name": "call_status",
+              "value": "={{ $json.body.CallStatus || 'missed' }}",
+              "type": "string"
+            },
+            {
+              "name": "business_name",
+              "value": "={{ $env.BUSINESS_NAME || 'Our team' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extract Call Data",
+      "type": "n8n-nodes-base.set",
+      "position": [250, 250],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.call_status }}",
+              "operation": "contains",
+              "value2": "no-answer"
+            }
+          ]
+        }
+      },
+      "name": "Is Missed Call?",
+      "type": "n8n-nodes-base.if",
+      "position": [500, 250],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "from": "={{ $env.TWILIO_PHONE_NUMBER }}",
+        "to": "={{ $json.caller_phone }}",
+        "message": "=Hi! Sorry we missed your call. {{ $json.business_name }} is here to help. Reply to this text or we'll call you back shortly. You can also chat with us anytime at: https://omni-channel-eight.vercel.app/"
+      },
+      "name": "Send Missed Call Text",
+      "type": "n8n-nodes-base.twilio",
+      "position": [750, 200],
+      "typeVersion": 1,
+      "credentials": {
+        "twilioApi": {
+          "id": "YOUR_TWILIO_CREDENTIAL_ID",
+          "name": "Twilio Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://dsoywpytpvxqpxiugopq.supabase.co/rest/v1/missed_calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"caller_phone\": \"{{ $json.caller_phone }}\",\n  \"called_phone\": \"{{ $json.called_phone }}\",\n  \"text_sent\": true,\n  \"created_at\": \"{{ $now.toISO() }}\"\n}",
+        "options": {}
+      },
+      "name": "Log Missed Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1000, 200],
+      "typeVersion": 4.3
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"action\": \"text_sent\",\n  \"to\": \"{{ $('Extract Call Data').item.json.caller_phone }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "Respond Missed Call Handled",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1250, 250],
+      "typeVersion": 1.5
+    }
+  ],
+  "connections": {
+    "Send SMS Webhook": {
+      "main": [[{"node": "Extract SMS Data", "type": "main", "index": 0}]]
+    },
+    "Extract SMS Data": {
+      "main": [[{"node": "Send SMS", "type": "main", "index": 0}]]
+    },
+    "Send SMS": {
+      "main": [[{"node": "Respond SMS Sent", "type": "main", "index": 0}]]
+    },
+    "Missed Call Webhook": {
+      "main": [[{"node": "Extract Call Data", "type": "main", "index": 0}]]
+    },
+    "Extract Call Data": {
+      "main": [[{"node": "Is Missed Call?", "type": "main", "index": 0}]]
+    },
+    "Is Missed Call?": {
+      "main": [
+        [{"node": "Send Missed Call Text", "type": "main", "index": 0}],
+        [{"node": "Respond Missed Call Handled", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Missed Call Text": {
+      "main": [[{"node": "Log Missed Call", "type": "main", "index": 0}]]
+    },
+    "Log Missed Call": {
+      "main": [[{"node": "Respond Missed Call Handled", "type": "main", "index": 0}]]
+    }
+  },
+  "meta": {
+    "instanceId": "omni-ai-twilio"
+  }
+}

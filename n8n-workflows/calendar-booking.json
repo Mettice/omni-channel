@@ -1,0 +1,201 @@
+{
+  "name": "Calendar Booking - Check Availability & Book",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book-appointment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Booking Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "typeVersion": 2.1,
+      "webhookId": "book-appointment"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "customer_id",
+              "value": "={{ $json.body.customer_id }}",
+              "type": "string"
+            },
+            {
+              "name": "customer_name",
+              "value": "={{ $json.body.customer_name || 'Customer' }}",
+              "type": "string"
+            },
+            {
+              "name": "customer_email",
+              "value": "={{ $json.body.customer_email || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "customer_phone",
+              "value": "={{ $json.body.customer_phone || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "requested_date",
+              "value": "={{ $json.body.requested_date || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "requested_time",
+              "value": "={{ $json.body.requested_time || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "service_type",
+              "value": "={{ $json.body.service_type || 'Consultation' }}",
+              "type": "string"
+            },
+            {
+              "name": "action",
+              "value": "={{ $json.body.action || 'check_availability' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extract Booking Data",
+      "type": "n8n-nodes-base.set",
+      "position": [250, 0],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "value2": "check_availability"
+            }
+          ]
+        }
+      },
+      "name": "Check or Book?",
+      "type": "n8n-nodes-base.if",
+      "position": [500, 0],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "primary"
+        },
+        "timeMin": "={{ $json.requested_date ? $json.requested_date + 'T00:00:00Z' : $now.toISO() }}",
+        "timeMax": "={{ $json.requested_date ? $json.requested_date + 'T23:59:59Z' : $now.plus({days: 7}).toISO() }}",
+        "options": {}
+      },
+      "name": "Get Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [750, -100],
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find available slots (9 AM - 5 PM, 30 min slots)\nconst bookedEvents = $input.all().map(item => item.json);\nconst requestedDate = $('Extract Booking Data').first().json.requested_date || new Date().toISOString().split('T')[0];\n\nconst slots = [];\nconst startHour = 9;\nconst endHour = 17;\n\nfor (let hour = startHour; hour < endHour; hour++) {\n  for (let min of [0, 30]) {\n    const slotTime = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;\n    const slotStart = new Date(`${requestedDate}T${slotTime}:00`);\n    const slotEnd = new Date(slotStart.getTime() + 30 * 60000);\n    \n    const isBooked = bookedEvents.some(event => {\n      if (!event.start || !event.end) return false;\n      const eventStart = new Date(event.start.dateTime || event.start.date);\n      const eventEnd = new Date(event.end.dateTime || event.end.date);\n      return slotStart < eventEnd && slotEnd > eventStart;\n    });\n    \n    if (!isBooked) {\n      slots.push({\n        time: slotTime,\n        datetime: slotStart.toISOString(),\n        display: `${hour > 12 ? hour - 12 : hour}:${min.toString().padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`\n      });\n    }\n  }\n}\n\nreturn [{ json: { available_slots: slots.slice(0, 6), date: requestedDate } }];"
+      },
+      "name": "Find Available Slots",
+      "type": "n8n-nodes-base.code",
+      "position": [1000, -100],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "Return Availability",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1250, -100],
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "primary"
+        },
+        "start": "={{ $json.requested_date }}T{{ $json.requested_time }}:00",
+        "end": "={{ $json.requested_date }}T{{ (parseInt($json.requested_time.split(':')[0]) + 1).toString().padStart(2, '0') }}:{{ $json.requested_time.split(':')[1] }}:00",
+        "additionalFields": {
+          "summary": "={{ $json.service_type }} - {{ $json.customer_name }}",
+          "description": "=Customer: {{ $json.customer_name }}\nEmail: {{ $json.customer_email }}\nPhone: {{ $json.customer_phone }}\nBooked via: Omni AI Voice Agent\nCustomer ID: {{ $json.customer_id }}",
+          "attendees": [
+            "={{ $json.customer_email }}"
+          ]
+        }
+      },
+      "name": "Create Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [750, 100],
+      "typeVersion": 1.3,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"event_id\": \"{{ $json.id }}\",\n  \"message\": \"Appointment booked for {{ $('Extract Booking Data').item.json.requested_date }} at {{ $('Extract Booking Data').item.json.requested_time }}\",\n  \"calendar_link\": \"{{ $json.htmlLink }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "Return Booking Confirmation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1000, 100],
+      "typeVersion": 1.5
+    }
+  ],
+  "connections": {
+    "Booking Webhook": {
+      "main": [[{"node": "Extract Booking Data", "type": "main", "index": 0}]]
+    },
+    "Extract Booking Data": {
+      "main": [[{"node": "Check or Book?", "type": "main", "index": 0}]]
+    },
+    "Check or Book?": {
+      "main": [
+        [{"node": "Get Calendar Events", "type": "main", "index": 0}],
+        [{"node": "Create Calendar Event", "type": "main", "index": 0}]
+      ]
+    },
+    "Get Calendar Events": {
+      "main": [[{"node": "Find Available Slots", "type": "main", "index": 0}]]
+    },
+    "Find Available Slots": {
+      "main": [[{"node": "Return Availability", "type": "main", "index": 0}]]
+    },
+    "Create Calendar Event": {
+      "main": [[{"node": "Return Booking Confirmation", "type": "main", "index": 0}]]
+    }
+  },
+  "meta": {
+    "instanceId": "omni-ai-calendar"
+  }
+}

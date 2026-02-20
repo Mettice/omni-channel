@@ -1,0 +1,343 @@
+{
+  "name": "Omni AI Lead Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [0, 0],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "operation": "Run actor and get dataset",
+        "actorId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apify/google-search-scraper"
+        },
+        "input": "={\n  \"queries\": \"site:linkedin.com 'head of customer support' hiring\\nsite:linkedin.com 'VP customer experience' ecommerce\\n'customer support' 'scaling' startup hiring\\n'reduce support tickets' saas\\n'24/7 customer service' small business\\n'chatbot for support' looking for\\n'customer service outsourcing' ecommerce\\n'ai customer support' implementation\\n'support team overwhelmed'\\n'hiring support agents' startup\",\n  \"resultsPerPage\": 10,\n  \"maxPagesPerQuery\": 1,\n  \"countryCode\": \"us\"\n}"
+      },
+      "name": "Google Search - Find Leads",
+      "type": "@apify/n8n-nodes-apify.apify",
+      "position": [250, 0],
+      "typeVersion": 1,
+      "credentials": {
+        "apifyApi": {
+          "id": "YOUR_APIFY_CREDENTIAL_ID",
+          "name": "Apify Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "={{ $json }}",
+        "options": {}
+      },
+      "name": "Split Results",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [500, 0],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ]
+        }
+      },
+      "name": "Filter Valid URLs",
+      "type": "n8n-nodes-base.filter",
+      "position": [750, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "Run actor and get dataset",
+        "actorId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apify/contact-info-scraper"
+        },
+        "input": "={\n  \"startUrls\": [{\"url\": \"{{ $json.url }}\"}],\n  \"maxDepth\": 2,\n  \"maxRequests\": 20\n}"
+      },
+      "name": "Scrape Contact Info",
+      "type": "@apify/n8n-nodes-apify.apify",
+      "position": [1000, 0],
+      "typeVersion": 1,
+      "credentials": {
+        "apifyApi": {
+          "id": "YOUR_APIFY_CREDENTIAL_ID",
+          "name": "Apify Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.emails[0] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ]
+        }
+      },
+      "name": "Filter - Has Email",
+      "type": "n8n-nodes-base.filter",
+      "position": [1250, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": "={{ $env.NOTION_LEADS_DB }}",
+        "returnAll": false,
+        "limit": 1,
+        "filterJson": "={{ {\"property\": \"Email\", \"email\": {\"equals\": $json.emails[0]}} }}"
+      },
+      "name": "Check If Exists in Notion",
+      "type": "n8n-nodes-base.notion",
+      "position": [1500, 0],
+      "typeVersion": 2.2,
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_NOTION_CREDENTIAL_ID",
+          "name": "Notion Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.results?.length ?? 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "name": "Is New Lead?",
+      "type": "n8n-nodes-base.filter",
+      "position": [1750, 0],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "email",
+              "value": "={{ $('Scrape Contact Info').item.json.emails[0] }}",
+              "type": "string"
+            },
+            {
+              "name": "company",
+              "value": "={{ $('Scrape Contact Info').item.json.companyName || $('Split Results').item.json.title || 'Unknown' }}",
+              "type": "string"
+            },
+            {
+              "name": "domain",
+              "value": "={{ $('Scrape Contact Info').item.json.domain || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $('Scrape Contact Info').item.json.phones?.[0] || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "source_url",
+              "value": "={{ $('Split Results').item.json.url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Format Lead Data",
+      "type": "n8n-nodes-base.set",
+      "position": [2000, 0],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": "={{ $env.NOTION_LEADS_DB }}",
+        "title": "={{ $json.company }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Email",
+              "emailValue": "={{ $json.email }}"
+            },
+            {
+              "key": "Company",
+              "richTextValue": "={{ $json.company }}"
+            },
+            {
+              "key": "Domain",
+              "urlValue": "={{ 'https://' + $json.domain }}"
+            },
+            {
+              "key": "Phone",
+              "phoneValue": "={{ $json.phone }}"
+            },
+            {
+              "key": "Status",
+              "selectValue": "New"
+            },
+            {
+              "key": "Source",
+              "selectValue": "Google Search"
+            },
+            {
+              "key": "Source URL",
+              "urlValue": "={{ $json.source_url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Save to Notion",
+      "type": "n8n-nodes-base.notion",
+      "position": [2250, 0],
+      "typeVersion": 2.2,
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_NOTION_CREDENTIAL_ID",
+          "name": "Notion Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.FROM_EMAIL }}",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Quick question about {{ $json.company }}'s support",
+        "emailType": "text",
+        "message": "=Hi there,\n\nI came across {{ $json.company }} and noticed you might be scaling your customer support.\n\nWe built an AI that handles both voice calls AND chat - with shared memory across channels. Customers can start on chat, switch to a call, and the AI remembers everything.\n\nQuick 2-min demo: https://omni-channel-eight.vercel.app/\n\nWorth a quick look?\n\nBest,\nDion",
+        "options": {}
+      },
+      "name": "Send Cold Email",
+      "type": "n8n-nodes-base.sendGrid",
+      "position": [2500, 0],
+      "typeVersion": 1,
+      "credentials": {
+        "sendGridApi": {
+          "id": "YOUR_SENDGRID_CREDENTIAL_ID",
+          "name": "SendGrid Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": "={{ $('Save to Notion').item.json.id }}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status",
+              "selectValue": "Contacted"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Update Status - Contacted",
+      "type": "n8n-nodes-base.notion",
+      "position": [2750, 0],
+      "typeVersion": 2.2,
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_NOTION_CREDENTIAL_ID",
+          "name": "Notion Account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [[{"node": "Google Search - Find Leads", "type": "main", "index": 0}]]
+    },
+    "Google Search - Find Leads": {
+      "main": [[{"node": "Split Results", "type": "main", "index": 0}]]
+    },
+    "Split Results": {
+      "main": [[{"node": "Filter Valid URLs", "type": "main", "index": 0}]]
+    },
+    "Filter Valid URLs": {
+      "main": [[{"node": "Scrape Contact Info", "type": "main", "index": 0}]]
+    },
+    "Scrape Contact Info": {
+      "main": [[{"node": "Filter - Has Email", "type": "main", "index": 0}]]
+    },
+    "Filter - Has Email": {
+      "main": [[{"node": "Check If Exists in Notion", "type": "main", "index": 0}]]
+    },
+    "Check If Exists in Notion": {
+      "main": [[{"node": "Is New Lead?", "type": "main", "index": 0}]]
+    },
+    "Is New Lead?": {
+      "main": [[{"node": "Format Lead Data", "type": "main", "index": 0}]]
+    },
+    "Format Lead Data": {
+      "main": [[{"node": "Save to Notion", "type": "main", "index": 0}]]
+    },
+    "Save to Notion": {
+      "main": [[{"node": "Send Cold Email", "type": "main", "index": 0}]]
+    },
+    "Send Cold Email": {
+      "main": [[{"node": "Update Status - Contacted", "type": "main", "index": 0}]]
+    }
+  },
+  "meta": {
+    "instanceId": "omni-ai-lead-gen"
+  }
+}

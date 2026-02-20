@@ -1,0 +1,160 @@
+{
+  "name": "GHL Integration - Create/Update Contact",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ghl-contact",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "GHL Contact Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0],
+      "typeVersion": 2.1,
+      "webhookId": "ghl-contact"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "customer_id",
+              "value": "={{ $json.body.customer_id }}",
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.body.name || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.body.email || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.body.phone || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "notes",
+              "value": "={{ $json.body.notes || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extract Data",
+      "type": "n8n-nodes-base.set",
+      "position": [250, 0],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "create",
+        "locationId": "={{ $env.GHL_LOCATION_ID }}",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "firstName": "={{ $json.name.split(' ')[0] || $json.name }}",
+          "lastName": "={{ $json.name.split(' ').slice(1).join(' ') || '' }}",
+          "phone": "={{ $json.phone }}",
+          "source": "Omni AI Voice Agent",
+          "tags": "omni-ai,voice-lead"
+        }
+      },
+      "name": "Create GHL Contact",
+      "type": "n8n-nodes-base.highLevel",
+      "position": [500, 0],
+      "typeVersion": 2,
+      "credentials": {
+        "highLevelOAuth2Api": {
+          "id": "YOUR_GHL_CREDENTIAL_ID",
+          "name": "GoHighLevel Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Extract Data').item.json.notes }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Has Notes?",
+      "type": "n8n-nodes-base.if",
+      "position": [750, 0],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "update",
+        "contactId": "={{ $json.id }}",
+        "updateFields": {
+          "customFields": {
+            "customFieldValues": [
+              {
+                "fieldId": "notes",
+                "value": "={{ $('Extract Data').item.json.notes }}"
+              }
+            ]
+          }
+        }
+      },
+      "name": "Add Notes",
+      "type": "n8n-nodes-base.highLevel",
+      "position": [1000, -100],
+      "typeVersion": 2,
+      "credentials": {
+        "highLevelOAuth2Api": {
+          "id": "YOUR_GHL_CREDENTIAL_ID",
+          "name": "GoHighLevel Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"contact_id\": \"{{ $('Create GHL Contact').item.json.id }}\",\n  \"message\": \"Contact created in GHL\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1250, 0],
+      "typeVersion": 1.5
+    }
+  ],
+  "connections": {
+    "GHL Contact Webhook": {
+      "main": [[{"node": "Extract Data", "type": "main", "index": 0}]]
+    },
+    "Extract Data": {
+      "main": [[{"node": "Create GHL Contact", "type": "main", "index": 0}]]
+    },
+    "Create GHL Contact": {
+      "main": [[{"node": "Has Notes?", "type": "main", "index": 0}]]
+    },
+    "Has Notes?": {
+      "main": [
+        [{"node": "Add Notes", "type": "main", "index": 0}],
+        [{"node": "Respond Success", "type": "main", "index": 0}]
+      ]
+    },
+    "Add Notes": {
+      "main": [[{"node": "Respond Success", "type": "main", "index": 0}]]
+    }
+  },
+  "meta": {
+    "instanceId": "omni-ai-ghl"
+  }
+}
