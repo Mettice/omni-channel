@@ -144,6 +144,25 @@
       border-bottom-right-radius: 4px;
     }
 
+    .message ul {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .message li {
+      margin: 4px 0;
+    }
+
+    .message strong {
+      font-weight: 600;
+      color: #00ff88;
+    }
+
+    .message em {
+      font-style: italic;
+      opacity: 0.9;
+    }
+
     .typing {
       background: #0f3460;
       color: #888;
@@ -337,6 +356,23 @@
       }
     }
 
+    // Convert markdown to HTML for chat display
+    function formatMarkdown(text) {
+      return text
+        // Bold: **text** or __text__
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/__(.+?)__/g, '<strong>$1</strong>')
+        // Italic: *text* or _text_
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/_(.+?)_/g, '<em>$1</em>')
+        // Bullet points: - item or • item
+        .replace(/^[-•]\s+(.+)$/gm, '<li>$1</li>')
+        // Wrap consecutive <li> in <ul>
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        // Line breaks
+        .replace(/\n/g, '<br>');
+    }
+
     async function sendMessage() {
       const input = document.getElementById('input');
       const messages = document.getElementById('messages');
@@ -363,7 +399,7 @@
         response = responseText;
       }
       document.getElementById('typing').remove();
-      messages.innerHTML += `<div class="message agent">${response}</div>`;
+      messages.innerHTML += `<div class="message agent">${formatMarkdown(response)}</div>`;
       messages.scrollTop = messages.scrollHeight;
     }
 
