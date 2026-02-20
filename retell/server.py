@@ -600,18 +600,16 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
 
     call_id = request.match_info.get("call_id", "unknown")
 
-    # Look up customer_id from our mapping
-    customer_id = CALL_CUSTOMER_MAP.get(call_id, call_id)
+    # Try to look up customer_id from our in-memory mapping first
+    # Will be updated from call_details metadata if available
+    customer_id = CALL_CUSTOMER_MAP.get(call_id, None)
     print(f"=== NEW CALL ===")
     print(f"Call ID: {call_id}")
-    print(f"Customer ID: {customer_id}")
-
-    # Load history for this customer
-    history = get_player_messages(customer_id, limit=10)
-    print(f"Loaded {len(history)} messages from history")
+    print(f"Initial customer_id from map: {customer_id}")
 
     # Track if we've sent initial greeting
     greeting_sent = False
+    history = []
 
     try:
         async for msg in ws:
@@ -628,11 +626,25 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
             interaction_type = data.get("interaction_type")
             response_id = data.get("response_id", 0)
             print(f"Received event: {interaction_type}")
-            print(f"Full data: {json.dumps(data)[:300]}")
+            print(f"Full data: {json.dumps(data)[:500]}")
 
             if interaction_type == "call_details":
-                # We already have customer_id from the mapping, just log
-                print(f"Received call_details event")
+                # Extract customer_id from metadata (survives server restarts)
+                call_data = data.get("call", {})
+                metadata = call_data.get("metadata", {})
+                metadata_customer_id = metadata.get("customer_id")
+
+                if metadata_customer_id:
+                    customer_id = metadata_customer_id
+                    print(f"Got customer_id from metadata: {customer_id}")
+                elif not customer_id:
+                    # Fallback to call_id if nothing else works
+                    customer_id = call_id
+                    print(f"Fallback to call_id as customer_id: {customer_id}")
+
+                # Now load history with the correct customer_id
+                history = get_player_messages(customer_id, limit=10)
+                print(f"Loaded {len(history)} messages from history for {customer_id}")
                 continue
 
             if interaction_type == "ping_pong":
@@ -648,6 +660,11 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                 continue
 
             if interaction_type == "response_required":
+                # Ensure we have a customer_id (should have been set by call_details)
+                if not customer_id:
+                    customer_id = call_id
+                    print(f"Warning: customer_id not set, using call_id: {customer_id}")
+
                 transcript = data.get("transcript", [])
 
                 # Find the last user message
@@ -666,13 +683,13 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                     greeting_sent = True
                     continue
 
-                # Get conversation history BEFORE saving new message
-                history = get_player_messages(customer_id, limit=10)
-                print(f"History loaded for {customer_id}: {len(history)} messages")
-
                 if last_user_msg:
                     save_message(customer_id, "user", last_user_msg)
                     greeting_sent = True  # User spoke, so greeting phase is over
+
+                # Always reload history to include ALL previous messages (cross-session)
+                history = get_player_messages(customer_id, limit=10)
+                print(f"History loaded for {customer_id}: {len(history)} messages")
 
                 prompt = last_user_msg if last_user_msg else "greet the customer warmly"
 
