@@ -1,496 +1,321 @@
-import os
+"""
+Omni AI - Multi-Channel Customer Support Server
+
+Main entry point for the aiohttp server with HTTP and WebSocket endpoints.
+"""
 import json
 import asyncio
+import re
+import time
+from collections import defaultdict
 from aiohttp import web
-from supabase import create_client
+import aiohttp
 
-# Load env vars from .env (supports running from /retell)
-def _load_dotenv_fallback() -> str | None:
-    candidates = [
-        os.path.join(os.path.dirname(__file__), ".env"),
-        os.path.join(os.path.dirname(__file__), "..", ".env"),
-        os.path.join(os.getcwd(), ".env"),
+from .config import (
+    RETELL_AGENT_ID,
+    RETELL_API_KEY,
+    STREAMING_CHUNK_DELAY,
+    N8N_WEBHOOK_BASE,
+    VOICE_AGENTS,
+    get_voice_agent,
+    get_system_prompt,
+    get_greeting,
+    logger
+)
+from .db import (
+    get_customer_messages,
+    save_message,
+    store_call_mapping,
+    get_call_mapping,
+    delete_call_mapping
+)
+from .llm import (
+    generate_response,
+    generate_response_streaming,
+    close_http_client
+)
+from .intents import detect_and_trigger_intents
+from .embeddings import detect_intents_hybrid
+from .summarization import smart_context_management
+from .analytics import (
+    start_conversation,
+    track_message,
+    track_intent,
+    end_conversation,
+    get_dashboard_stats,
+    get_conversations_list
+)
+
+# === Rate Limiting ===
+# Simple in-memory rate limiter (use Redis in production for multi-instance)
+RATE_LIMIT_REQUESTS = 30  # requests per window
+RATE_LIMIT_WINDOW = 60  # seconds
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+
+def check_rate_limit(client_id: str) -> bool:
+    """
+    Check if client has exceeded rate limit.
+    Returns True if request is allowed, False if rate limited.
+    """
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW
+
+    # Clean old entries and add new one
+    _rate_limit_store[client_id] = [
+        t for t in _rate_limit_store[client_id] if t > window_start
     ]
 
-    for p in candidates:
-        try:
-            if not os.path.exists(p):
-                continue
+    if len(_rate_limit_store[client_id]) >= RATE_LIMIT_REQUESTS:
+        return False
 
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if k:
-                        os.environ.setdefault(k, v)
-            return p
-        except Exception:
-            continue
-
-    return None
-
-_ENV_PATH = _load_dotenv_fallback()
-if _ENV_PATH:
-    print(f"Loaded environment from: {_ENV_PATH}")
-
-RETELL_AGENT_ID = "agent_f604bb54a90edd0d700a3b40ca"
-
-# Supabase config
-SUPABASE_URL = "https://dsoywpytpvxqpxiugopq.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzb3l3cHl0cHZ4cXB4aXVnb3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzODM4NTMsImV4cCI6MjA4Njk1OTg1M30.B4wEnUp80TCpKpesWTcKj8Q3YbL-Q-LeIGEhmXdUrMs"
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# In-memory mapping of Retell call_id -> customer_id
-# (For production, use Redis or database)
-CALL_CUSTOMER_MAP = {}
-
-# n8n Webhook URLs (configure per client)
-N8N_WEBHOOK_BASE = os.environ.get("N8N_WEBHOOK_BASE", "")  # e.g., "https://your-n8n.com/webhook"
-
-# Domain/Industry configuration (loaded from environment or config file)
-DOMAIN = os.environ.get("DOMAIN", "generic")  # e.g., "igaming", "ecommerce", "healthcare", "fintech"
-
-# System prompts per domain
-SYSTEM_PROMPTS = {
-    "igaming": """You are a professional customer support agent.
-Keep responses under 2 sentences. Be warm, professional, and concise.
-Help customers with their inquiries efficiently.""",
-
-    "ecommerce": """You are a friendly e-commerce customer support agent.
-Keep responses under 2 sentences. Be helpful and solution-oriented.
-Help with: orders, shipping, returns, refunds, product questions, account issues.""",
-
-    "healthcare": """You are a professional healthcare scheduling assistant.
-Keep responses under 2 sentences. Be empathetic and clear.
-Help with: appointments, scheduling, prescription refills, general inquiries.
-Never provide medical advice - always direct to healthcare providers.""",
-
-    "fintech": """You are a professional banking support assistant.
-Keep responses under 2 sentences. Be secure-minded and precise.
-Help with: account inquiries, transactions, card issues, payments.
-Never share or ask for full account numbers or passwords.""",
-
-    "realestate": """You are a professional real estate assistant.
-Keep responses under 2 sentences. Be knowledgeable and helpful.
-Help with: property inquiries, scheduling viewings, pricing questions, neighborhood info.""",
-
-    "generic": """You are Omni, an AI voice and chat assistant built to demonstrate what AI customer support can do.
-
-IMPORTANT: Keep responses conversational and natural. Avoid using markdown formatting like ** or bullet points. Speak in flowing sentences since this may be read aloud on voice calls.
-
-When someone asks what you can do, explain conversationally:
-I handle both voice calls and web chat with shared memory, so customers can switch channels and I remember everything. I can book appointments directly into calendars like Google Calendar or Calendly. I sync contacts to CRMs like GoHighLevel, HubSpot, or Salesforce. I automatically text customers who miss calls. And I work across WhatsApp, Telegram, Instagram, Email, and more. Basically, I'm 24/7 customer support that sounds natural and remembers every conversation.
-
-If they ask about channels or integrations, say something like:
-We support voice, web chat, SMS, WhatsApp, Telegram, Instagram, Facebook Messenger, and Email. We can integrate with any CRM or calendar system. What channels or systems do you currently use? We can connect to those.
-
-If they ask about pricing or want to buy:
-Say "I can connect you with Dion to discuss pricing and setup for your business. Would you like to share your contact info?" Then collect their name, email, phone, and business name if they agree.
-
-For regular support questions, be helpful and concise. Keep responses under 2-3 sentences when possible.
-You remember the full conversation history across all channels - reference past conversations when relevant."""
-}
-
-# Intent patterns per domain (configurable per industry)
-DOMAIN_INTENTS = {
-    "igaming": {
-        "escalate": {
-            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone", "real person"],
-            "webhook": "/escalate"
-        },
-        "withdrawal": {
-            "keywords": ["withdraw", "withdrawal", "cash out", "payout", "my money"],
-            "webhook": "/withdrawal-status"
-        },
-        "bonus": {
-            "keywords": ["bonus", "promotion", "free spins", "offer", "reward"],
-            "webhook": "/bonus-status"
-        },
-        "verification": {
-            "keywords": ["verify", "verification", "kyc", "documents", "id", "identity"],
-            "webhook": "/verification-status"
-        }
-    },
-    "ecommerce": {
-        "escalate": {
-            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone"],
-            "webhook": "/escalate"
-        },
-        "order_status": {
-            "keywords": ["where is my order", "track", "shipping", "delivery", "package"],
-            "webhook": "/order-status"
-        },
-        "return": {
-            "keywords": ["return", "refund", "exchange", "send back", "money back"],
-            "webhook": "/return-request"
-        },
-        "cancel": {
-            "keywords": ["cancel", "cancel order", "don't want", "stop order"],
-            "webhook": "/cancel-order"
-        }
-    },
-    "healthcare": {
-        "escalate": {
-            "keywords": ["doctor", "nurse", "emergency", "urgent", "speak to someone"],
-            "webhook": "/escalate"
-        },
-        "book_appointment": {
-            "keywords": ["appointment", "schedule", "book", "available", "see doctor", "visit", "consultation", "checkup"],
-            "webhook": "/book-appointment"
-        },
-        "prescription": {
-            "keywords": ["prescription", "refill", "medication", "medicine", "pharmacy"],
-            "webhook": "/prescription"
-        },
-        "results": {
-            "keywords": ["results", "test results", "lab", "report"],
-            "webhook": "/results"
-        },
-        "contact_info": {
-            "keywords": ["call me back", "my number is", "my phone", "contact me", "reach me"],
-            "webhook": "/ghl-contact"
-        }
-    },
-    "fintech": {
-        "escalate": {
-            "keywords": ["manager", "human", "supervisor", "complaint", "fraud", "unauthorized"],
-            "webhook": "/escalate"
-        },
-        "balance": {
-            "keywords": ["balance", "how much", "available", "account balance"],
-            "webhook": "/balance"
-        },
-        "transaction": {
-            "keywords": ["transaction", "payment", "transfer", "sent", "received"],
-            "webhook": "/transaction"
-        },
-        "card": {
-            "keywords": ["card", "lost card", "stolen", "block card", "new card"],
-            "webhook": "/card-issue"
-        }
-    },
-    "realestate": {
-        "escalate": {
-            "keywords": ["manager", "human", "agent", "speak to someone"],
-            "webhook": "/escalate"
-        },
-        "book_appointment": {
-            "keywords": ["view", "visit", "see property", "tour", "showing", "schedule", "book", "appointment"],
-            "webhook": "/book-appointment"
-        },
-        "pricing": {
-            "keywords": ["price", "cost", "how much", "afford", "mortgage", "financing"],
-            "webhook": "/pricing-inquiry"
-        },
-        "availability": {
-            "keywords": ["available", "still available", "sold", "rent", "lease"],
-            "webhook": "/availability"
-        },
-        "contact_info": {
-            "keywords": ["call me back", "my number is", "my phone", "my email", "contact me"],
-            "webhook": "/ghl-contact"
-        }
-    },
-    "generic": {
-        "escalate": {
-            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone", "real person"],
-            "webhook": "/escalate"
-        },
-        "book_appointment": {
-            "keywords": ["book", "appointment", "schedule", "available", "calendar", "slot", "meeting", "consultation"],
-            "webhook": "/book-appointment"
-        },
-        "contact_info": {
-            "keywords": ["call me back", "my number is", "my email is", "contact me", "reach me"],
-            "webhook": "/ghl-contact"
-        }
-    }
-}
-
-def get_system_prompt(player_id: str = "", context: str = "") -> str:
-    """Get the system prompt for the current domain."""
-    base_prompt = SYSTEM_PROMPTS.get(DOMAIN, SYSTEM_PROMPTS["generic"])
-    if context:
-        return f"{base_prompt}\n\nCustomer history:\n{context}"
-    return base_prompt
-
-def get_intent_patterns() -> dict:
-    """Get intent patterns for the current domain."""
-    return DOMAIN_INTENTS.get(DOMAIN, DOMAIN_INTENTS["generic"])
-
-# Greetings per domain
-DOMAIN_GREETINGS = {
-    "igaming": "Hello! Welcome to support. How can I help you today?",
-    "ecommerce": "Hi there! Thanks for calling. How can I help with your order today?",
-    "healthcare": "Hello, thank you for calling. How may I assist you with your healthcare needs today?",
-    "fintech": "Welcome to support. How can I assist you with your account today?",
-    "realestate": "Hi! Thanks for reaching out. Are you looking to buy, sell, or rent today?",
-    "generic": "Hi! I'm Omni, an AI assistant that handles voice and chat support. Feel free to test me out, or ask what I can do for your business!"
-}
-
-def get_greeting() -> str:
-    """Get the greeting for the current domain."""
-    return DOMAIN_GREETINGS.get(DOMAIN, DOMAIN_GREETINGS["generic"])
+    _rate_limit_store[client_id].append(now)
+    return True
 
 
-async def detect_and_trigger_intents(customer_id: str, message: str, channel: str = "voice") -> dict:
-    """
-    Detect intents in message and trigger corresponding n8n webhooks.
-    Returns dict of triggered intents and their responses.
-    """
-    if not N8N_WEBHOOK_BASE:
-        return {}
-
-    import httpx
-
-    message_lower = message.lower()
-    triggered = {}
-    intent_patterns = get_intent_patterns()
-
-    for intent_name, config in intent_patterns.items():
-        if any(keyword in message_lower for keyword in config["keywords"]):
-            webhook_url = f"{N8N_WEBHOOK_BASE}{config['webhook']}"
-            try:
-                async with httpx.AsyncClient() as client:
-                    res = await client.post(
-                        webhook_url,
-                        json={
-                            "customer_id": customer_id,
-                            "message": message,
-                            "channel": channel,
-                            "intent": intent_name,
-                            "domain": DOMAIN
-                        },
-                        timeout=5
-                    )
-                    if res.status_code == 200:
-                        triggered[intent_name] = res.text
-                        print(f"[{DOMAIN}] Triggered intent '{intent_name}' for customer {customer_id}")
-            except Exception as e:
-                print(f"n8n webhook error ({intent_name}): {e}")
-
-    return triggered
+# === Input Validation ===
+# Pattern for valid customer/player IDs (alphanumeric, underscore, hyphen, 1-100 chars)
+VALID_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,100}$')
+MAX_MESSAGE_LENGTH = 2000
 
 
-def _role_to_openai(role: str) -> str:
-    if role == "agent":
-        return "assistant"
-    if role == "assistant":
-        return "assistant"
-    return "user"
+def validate_customer_id(customer_id: str) -> tuple[bool, str]:
+    """Validate customer ID format. Returns (is_valid, error_message)."""
+    if not customer_id:
+        return False, "customer_id is required"
+    if not isinstance(customer_id, str):
+        return False, "customer_id must be a string"
+    if not VALID_ID_PATTERN.match(customer_id):
+        return False, "customer_id contains invalid characters"
+    return True, ""
 
 
-def get_player_messages(player_id: str, limit: int = 10) -> list[dict]:
-    """
-    Returns last messages in OpenAI format: [{"role": "...", "content": "..."}]
-    """
-    try:
-        result = supabase.table("player_sessions") \
-            .select("*") \
-            .eq("player_id", player_id) \
-            .order("created_at", desc=True) \
-            .limit(limit) \
-            .execute()
-
-        if not result.data:
-            return []
-
-        # Supabase returns newest first; reverse to chronological.
-        msgs = []
-        for row in reversed(result.data):
-            content = row.get("message") or ""
-            if not content:
-                continue
-            msgs.append({
-                "role": _role_to_openai(row.get("role", "user")),
-                "content": content
-            })
-        return msgs
-    except Exception as e:
-        print(f"Supabase error (messages): {e}")
-        return []
-
-def get_player_context(player_id: str) -> str:
-    try:
-        result = supabase.table("player_sessions") \
-            .select("*") \
-            .eq("player_id", player_id) \
-            .order("created_at", desc=True) \
-            .limit(10) \
-            .execute()
-        
-        if not result.data:
-            return "No previous interaction history."
-        
-        history = []
-        for row in reversed(result.data):
-            history.append(f"{row['role']} ({row['channel']}): {row['message']}")
-        
-        return "\n".join(history)
-    except Exception as e:
-        print(f"Supabase error: {e}")
-        return "No previous interaction history."
-
-def save_message(player_id: str, role: str, message: str, channel: str = "voice"):
-    try:
-        supabase.table("player_sessions").insert({
-            "player_id": player_id,
-            "channel": channel,
-            "role": role,
-            "message": message
-        }).execute()
-    except Exception as e:
-        print(f"Save error: {e}")
-
-async def generate_response(messages: list) -> str:
-    """Non-streaming version for chat endpoint."""
-    import httpx
-
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set (check your .env loading).")
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "gpt-4o",
-        "messages": messages,
-        "max_tokens": 150
-    }
-    async with httpx.AsyncClient() as client:
-        res = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=10
-        )
-
-        # If the API returns an error payload, it won't contain "choices"
-        try:
-            data = res.json()
-        except Exception:
-            raise RuntimeError(f"OpenAI returned non-JSON response (HTTP {res.status_code}).")
-
-        if res.status_code >= 400:
-            err = data.get("error") if isinstance(data, dict) else None
-            msg = err.get("message") if isinstance(err, dict) else str(data)
-            raise RuntimeError(f"OpenAI API error (HTTP {res.status_code}): {msg}")
-
-        choices = data.get("choices") if isinstance(data, dict) else None
-        if not choices:
-            raise RuntimeError(f"OpenAI response missing choices: {data}")
-
-        return choices[0]["message"]["content"]
+def validate_message(message: str) -> tuple[bool, str]:
+    """Validate message format. Returns (is_valid, error_message)."""
+    if not message:
+        return False, "message is required"
+    if not isinstance(message, str):
+        return False, "message must be a string"
+    if len(message) > MAX_MESSAGE_LENGTH:
+        return False, f"message exceeds maximum length of {MAX_MESSAGE_LENGTH}"
+    return True, ""
 
 
-async def generate_response_streaming(messages: list, ws, response_id: int) -> str:
-    """
-    Streaming version for Retell Custom LLM.
-    Streams tokens directly to the WebSocket and returns the full response.
-    """
-    import httpx
+def sanitize_message(message: str) -> str:
+    """Sanitize message content."""
+    # Remove null bytes and control characters (except newlines)
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', message).strip()
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set (check your .env loading).")
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "gpt-4o",
-        "messages": messages,
-        "max_tokens": 150,
-        "stream": True
-    }
-
-    full_response = ""
-
-    async with httpx.AsyncClient() as client:
-        async with client.stream(
-            "POST",
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30
-        ) as res:
-            if res.status_code >= 400:
-                error_body = await res.aread()
-                raise RuntimeError(f"OpenAI API error (HTTP {res.status_code}): {error_body.decode()}")
-
-            async for line in res.aiter_lines():
-                if not line:
-                    continue
-                if not line.startswith("data: "):
-                    continue
-
-                data_str = line[6:]  # Remove "data: " prefix
-                if data_str == "[DONE]":
-                    break
-
-                try:
-                    data = json.loads(data_str)
-                    delta = data.get("choices", [{}])[0].get("delta", {})
-                    content = delta.get("content", "")
-
-                    if content:
-                        full_response += content
-                        # Stream this chunk to Retell
-                        await ws.send_str(json.dumps({
-                            "response_id": response_id,
-                            "content": content,
-                            "content_complete": False
-                        }))
-                except json.JSONDecodeError:
-                    continue
-
-    # Send completion signal to Retell
-    await ws.send_str(json.dumps({
-        "response_id": response_id,
-        "content": "",
-        "content_complete": True
-    }))
-
-    return full_response
-
+# === CORS Helpers ===
 def _corsify(resp: web.StreamResponse) -> web.StreamResponse:
+    """Add CORS headers to response."""
     resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    resp.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
     resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return resp
 
 
-async def create_call(request: web.Request) -> web.StreamResponse:
+def _get_client_ip(request: web.Request) -> str:
+    """Extract client IP for rate limiting."""
+    # Check for proxy headers first
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote or "unknown"
+
+
+# === HTTP Handlers ===
+
+async def health(request: web.Request) -> web.Response:
+    """Health check endpoint for monitoring."""
+    return web.json_response({
+        "status": "ok",
+        "service": "omni-ai",
+        "version": "1.0.0"
+    })
+
+
+# === Analytics API Endpoints ===
+
+async def api_analytics_stats(request: web.Request) -> web.Response:
+    """Get dashboard statistics."""
     if request.method == "OPTIONS":
         return _corsify(web.Response(status=204))
 
-    retell_api_key = os.environ.get("RETELL_API_KEY")
-    if not retell_api_key:
-        return _corsify(web.json_response({"error": "RETELL_API_KEY is not set"}, status=500))
+    days = int(request.query.get("days", 7))
+    stats = await get_dashboard_stats(days)
+    return _corsify(web.json_response(stats))
 
-    # Get customer_id from query string
+
+async def api_analytics_conversations(request: web.Request) -> web.Response:
+    """Get list of conversations."""
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    limit = int(request.query.get("limit", 50))
+    offset = int(request.query.get("offset", 0))
+    channel = request.query.get("channel")
+
+    conversations = await get_conversations_list(limit, offset, channel)
+    return _corsify(web.json_response({"conversations": conversations}))
+
+
+# === Domain Config API Endpoints ===
+
+async def api_domains_list(request: web.Request) -> web.Response:
+    """Get list of all domain configurations."""
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    from .db import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return _corsify(web.json_response({"error": "Database not configured"}, status=500))
+
+    try:
+        result = supabase.table("domain_configs").select("*").order("domain").execute()
+        return _corsify(web.json_response({"domains": result.data or []}))
+    except Exception as e:
+        logger.error(f"Failed to get domains: {e}")
+        return _corsify(web.json_response({"error": str(e)}, status=500))
+
+
+async def api_domain_update(request: web.Request) -> web.Response:
+    """Update a domain configuration."""
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    try:
+        payload = await request.json()
+    except Exception:
+        return _corsify(web.json_response({"error": "Invalid JSON"}, status=400))
+
+    domain = payload.get("domain")
+    if not domain:
+        return _corsify(web.json_response({"error": "domain is required"}, status=400))
+
+    from .db import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return _corsify(web.json_response({"error": "Database not configured"}, status=500))
+
+    try:
+        # Update only provided fields
+        update_data = {}
+        for field in ["display_name", "system_prompt", "greeting", "primary_color", "logo_url", "active"]:
+            if field in payload:
+                update_data[field] = payload[field]
+
+        if update_data:
+            update_data["updated_at"] = "now()"
+            supabase.table("domain_configs").update(update_data).eq("domain", domain).execute()
+
+        return _corsify(web.json_response({"success": True}))
+    except Exception as e:
+        logger.error(f"Failed to update domain: {e}")
+        return _corsify(web.json_response({"error": str(e)}, status=500))
+
+
+async def api_domain_create(request: web.Request) -> web.Response:
+    """Create a new domain configuration."""
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    try:
+        payload = await request.json()
+    except Exception:
+        return _corsify(web.json_response({"error": "Invalid JSON"}, status=400))
+
+    required = ["domain", "display_name", "system_prompt", "greeting"]
+    for field in required:
+        if field not in payload:
+            return _corsify(web.json_response({"error": f"{field} is required"}, status=400))
+
+    from .db import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return _corsify(web.json_response({"error": "Database not configured"}, status=500))
+
+    try:
+        supabase.table("domain_configs").insert({
+            "domain": payload["domain"],
+            "display_name": payload["display_name"],
+            "system_prompt": payload["system_prompt"],
+            "greeting": payload["greeting"],
+            "primary_color": payload.get("primary_color", "#6366f1"),
+            "logo_url": payload.get("logo_url"),
+            "active": payload.get("active", True)
+        }).execute()
+
+        return _corsify(web.json_response({"success": True}))
+    except Exception as e:
+        logger.error(f"Failed to create domain: {e}")
+        return _corsify(web.json_response({"error": str(e)}, status=500))
+
+
+# === Voice Selection API ===
+
+async def api_voices_list(request: web.Request) -> web.StreamResponse:
+    """List available voice options for the UI."""
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    voices = []
+    for voice_id, config in VOICE_AGENTS.items():
+        voices.append({
+            "id": voice_id,
+            "name": config["name"],
+            "language": config["language"],
+            "gender": config["gender"],
+            "description": config["description"],
+            "preview_url": config.get("preview_url")
+        })
+
+    return _corsify(web.json_response({"voices": voices}))
+
+
+async def create_call(request: web.Request) -> web.StreamResponse:
+    """Create a new Retell voice call with optional voice selection."""
+    if request.method == "OPTIONS":
+        return _corsify(web.Response(status=204))
+
+    # Rate limiting
+    client_ip = _get_client_ip(request)
+    if not check_rate_limit(f"create_call:{client_ip}"):
+        return _corsify(web.json_response(
+            {"error": "Rate limit exceeded. Please try again later."},
+            status=429
+        ))
+
+    if not RETELL_API_KEY:
+        return _corsify(web.json_response(
+            {"error": "RETELL_API_KEY is not configured"},
+            status=500
+        ))
+
+    # Get and validate customer_id
     customer_id = request.query.get("customer_id", "unknown")
-    print(f"Creating call for customer: {customer_id}")
+    is_valid, error = validate_customer_id(customer_id)
+    if not is_valid:
+        return _corsify(web.json_response({"error": error}, status=400))
+
+    # Get voice selection (optional)
+    voice_id = request.query.get("voice_id", "default")
+    voice_config = get_voice_agent(voice_id)
+    agent_id = voice_config["agent_id"]
+
+    logger.info(f"Creating call for customer: {customer_id} with voice: {voice_config['name']}")
 
     payload = {
-        "agent_id": RETELL_AGENT_ID,
-        "metadata": {"customer_id": customer_id}
+        "agent_id": agent_id,
+        "metadata": {"customer_id": customer_id, "voice_id": voice_id}
     }
     headers = {
-        "Authorization": f"Bearer {retell_api_key}",
+        "Authorization": f"Bearer {RETELL_API_KEY}",
         "Content-Type": "application/json",
     }
 
-    import aiohttp
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -506,44 +331,76 @@ async def create_call(request: web.Request) -> web.StreamResponse:
                     data = {"raw": text}
 
                 if resp.status >= 400:
-                    return _corsify(web.json_response({"error": data}, status=resp.status))
+                    logger.error(f"Retell API error: {data}")
+                    # Extract readable error message from Retell response
+                    error_msg = data.get("message") or data.get("error") or str(data)
+                    return _corsify(web.json_response({"error": error_msg}, status=resp.status))
 
                 access_token = data.get("access_token")
                 call_id = data.get("call_id")
 
                 if not access_token:
-                    return _corsify(web.json_response({"error": "Missing access_token", "data": data}, status=500))
+                    return _corsify(web.json_response(
+                        {"error": "Missing access_token", "data": data},
+                        status=500
+                    ))
 
-                # Store mapping of call_id -> customer_id
+                # Store mapping in database for persistence
                 if call_id:
-                    CALL_CUSTOMER_MAP[call_id] = customer_id
-                    print(f"Mapped call {call_id} -> customer {customer_id}")
+                    store_call_mapping(call_id, customer_id)
+                    logger.info(f"Mapped call {call_id} -> customer {customer_id}")
 
                 return _corsify(web.json_response({"access_token": access_token}))
+    except asyncio.TimeoutError:
+        logger.error("Retell API timeout")
+        return _corsify(web.json_response({"error": "Request timeout"}, status=504))
     except Exception as e:
+        logger.error(f"Create call error: {e}")
         return _corsify(web.json_response({"error": str(e)}, status=500))
 
 
 async def chat(request: web.Request) -> web.StreamResponse:
+    """Handle chat messages."""
     if request.method == "OPTIONS":
         return _corsify(web.Response(status=204))
+
+    # Rate limiting
+    client_ip = _get_client_ip(request)
+    if not check_rate_limit(f"chat:{client_ip}"):
+        return _corsify(web.json_response(
+            {"error": "Rate limit exceeded. Please try again later."},
+            status=429
+        ))
 
     try:
         payload = await request.json()
     except Exception:
         return _corsify(web.json_response({"error": "Invalid JSON body"}, status=400))
 
-    player_id = payload.get("player_id")
-    message = payload.get("message")
-    if not player_id or not isinstance(player_id, str):
-        return _corsify(web.json_response({"error": "player_id is required"}, status=400))
-    if not message or not isinstance(message, str):
-        return _corsify(web.json_response({"error": "message is required"}, status=400))
+    # Validate inputs
+    customer_id = payload.get("player_id")  # Keep 'player_id' for API compatibility
+    is_valid, error = validate_customer_id(customer_id)
+    if not is_valid:
+        return _corsify(web.json_response({"error": error}, status=400))
+
+    message = payload.get("message", "")
+    is_valid, error = validate_message(message)
+    if not is_valid:
+        return _corsify(web.json_response({"error": error}, status=400))
+
+    message = sanitize_message(message)
+    request_start = time.time()
+
+    # Start tracking conversation
+    start_conversation(customer_id, "chat")
 
     # Persist user message first
-    save_message(player_id, "user", message, channel="web")
+    save_message(customer_id, "user", message, channel="web")
+    track_message(customer_id, "user", "chat")
 
-    history = get_player_messages(player_id, limit=10)
+    # Get history and apply smart summarization if needed
+    history = get_customer_messages(customer_id)
+    history = await smart_context_management(history)
 
     try:
         response = await generate_response(
@@ -552,20 +409,44 @@ async def chat(request: web.Request) -> web.StreamResponse:
             + [{"role": "user", "content": message}]
         )
     except Exception as e:
-        print(f"Chat generation failed: {e}")
+        logger.error(f"Chat generation failed: {e}")
         return _corsify(web.json_response({"error": str(e)}, status=500))
 
-    save_message(player_id, "agent", response, channel="web")
+    # Calculate response time
+    response_time_ms = (time.time() - request_start) * 1000
 
-    # Trigger n8n workflows based on detected intents (runs in background)
-    asyncio.create_task(detect_and_trigger_intents(player_id, message, "chat"))
+    save_message(customer_id, "agent", response, channel="web")
+    track_message(customer_id, "agent", "chat", response_time_ms=response_time_ms)
+
+    # Detect intents using hybrid approach (semantic + keyword)
+    asyncio.create_task(_process_intents(customer_id, message, "chat"))
 
     return _corsify(web.json_response({"response": response}))
 
 
+async def _process_intents(customer_id: str, message: str, channel: str):
+    """Process intents using hybrid detection and trigger webhooks."""
+    try:
+        # Use semantic detection first, fall back to keywords
+        detected_intents = await detect_intents_hybrid(message)
+
+        for intent_name, confidence, webhook_path in detected_intents:
+            # Track the intent
+            track_intent(customer_id, intent_name, confidence, webhook_triggered=bool(N8N_WEBHOOK_BASE))
+
+            # Trigger n8n webhook if configured
+            if N8N_WEBHOOK_BASE:
+                await detect_and_trigger_intents(customer_id, message, channel)
+
+    except Exception as e:
+        logger.error(f"Intent processing error: {e}")
+
+
+# === WebSocket Handler ===
+
 async def stream_text_to_retell(ws, text: str, response_id: int):
     """
-    Stream a pre-generated text to Retell token by token.
+    Stream pre-generated text to Retell token by token.
     Used for greetings or fallback responses.
     """
     words = text.split(" ")
@@ -577,8 +458,7 @@ async def stream_text_to_retell(ws, text: str, response_id: int):
             "content": chunk,
             "content_complete": False
         }))
-        # Small delay to simulate natural speech pacing
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(STREAMING_CHUNK_DELAY)
 
     # Send completion signal
     await ws.send_str(json.dumps({
@@ -589,17 +469,17 @@ async def stream_text_to_retell(ws, text: str, response_id: int):
 
 
 async def llm_websocket(request: web.Request) -> web.StreamResponse:
+    """Handle Retell LLM WebSocket connections."""
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     call_id = request.match_info.get("call_id", "unknown")
 
-    # Try to look up customer_id from our in-memory mapping first
-    # Will be updated from call_details metadata if available
-    customer_id = CALL_CUSTOMER_MAP.get(call_id, None)
-    print(f"=== NEW CALL ===")
-    print(f"Call ID: {call_id}")
-    print(f"Initial customer_id from map: {customer_id}")
+    # Try to look up customer_id from database
+    customer_id = get_call_mapping(call_id)
+    logger.info(f"=== NEW CALL ===")
+    logger.info(f"Call ID: {call_id}")
+    logger.info(f"Initial customer_id from DB: {customer_id}")
 
     # Track if we've sent initial greeting
     greeting_sent = False
@@ -619,8 +499,7 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
             data = json.loads(message_text)
             interaction_type = data.get("interaction_type")
             response_id = data.get("response_id", 0)
-            print(f"Received event: {interaction_type}")
-            print(f"Full data: {json.dumps(data)[:500]}")
+            logger.debug(f"Received event: {interaction_type}")
 
             if interaction_type == "call_details":
                 # Extract customer_id from metadata (survives server restarts)
@@ -630,15 +509,15 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
 
                 if metadata_customer_id:
                     customer_id = metadata_customer_id
-                    print(f"Got customer_id from metadata: {customer_id}")
+                    logger.info(f"Got customer_id from metadata: {customer_id}")
                 elif not customer_id:
                     # Fallback to call_id if nothing else works
                     customer_id = call_id
-                    print(f"Fallback to call_id as customer_id: {customer_id}")
+                    logger.info(f"Fallback to call_id as customer_id: {customer_id}")
 
                 # Now load history with the correct customer_id
-                history = get_player_messages(customer_id, limit=10)
-                print(f"Loaded {len(history)} messages from history for {customer_id}")
+                history = get_customer_messages(customer_id)
+                logger.info(f"Loaded {len(history)} messages from history for {customer_id}")
                 continue
 
             if interaction_type == "ping_pong":
@@ -654,12 +533,13 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                 continue
 
             if interaction_type == "response_required":
-                # Ensure we have a customer_id (should have been set by call_details)
+                # Ensure we have a customer_id
                 if not customer_id:
                     customer_id = call_id
-                    print(f"Warning: customer_id not set, using call_id: {customer_id}")
+                    logger.warning(f"customer_id not set, using call_id: {customer_id}")
 
                 transcript = data.get("transcript", [])
+                request_start = time.time()
 
                 # Find the last user message
                 last_user_msg = ""
@@ -671,23 +551,29 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                 # If no user message yet, send greeting
                 if not last_user_msg and not greeting_sent:
                     greeting = get_greeting()
-                    print(f"Streaming greeting to {customer_id}: {greeting}")
+                    logger.info(f"Streaming greeting to {customer_id}")
                     await stream_text_to_retell(ws, greeting, response_id)
                     save_message(customer_id, "agent", greeting)
+                    start_conversation(customer_id, "voice")
+                    track_message(customer_id, "agent", "voice")
                     greeting_sent = True
                     continue
 
                 if last_user_msg:
+                    # Sanitize and save user message
+                    last_user_msg = sanitize_message(last_user_msg)
                     save_message(customer_id, "user", last_user_msg)
+                    track_message(customer_id, "user", "voice")
                     greeting_sent = True  # User spoke, so greeting phase is over
 
-                # Always reload history to include ALL previous messages (cross-session)
-                history = get_player_messages(customer_id, limit=10)
-                print(f"History loaded for {customer_id}: {len(history)} messages")
+                # Reload history and apply smart summarization
+                history = get_customer_messages(customer_id)
+                history = await smart_context_management(history)
+                logger.debug(f"History loaded for {customer_id}: {len(history)} messages")
 
                 prompt = last_user_msg if last_user_msg else "greet the customer warmly"
 
-                print(f"Generating streaming response for {customer_id}: {prompt[:50]}...")
+                logger.info(f"Generating response for {customer_id}: {prompt[:50]}...")
 
                 try:
                     # Build messages: system + history + current user message
@@ -700,44 +586,105 @@ async def llm_websocket(request: web.Request) -> web.StreamResponse:
                         ws,
                         response_id
                     )
-                    print(f"Streamed response: {response}")
-                    save_message(customer_id, "agent", response)
 
-                    # Trigger n8n workflows based on detected intents (runs in background)
-                    asyncio.create_task(detect_and_trigger_intents(customer_id, last_user_msg, "voice"))
+                    # Calculate response time
+                    response_time_ms = (time.time() - request_start) * 1000
+
+                    logger.info(f"Streamed response: {response[:100]}...")
+                    save_message(customer_id, "agent", response)
+                    track_message(customer_id, "agent", "voice", response_time_ms=response_time_ms)
+
+                    # Process intents using hybrid detection
+                    asyncio.create_task(_process_intents(customer_id, last_user_msg, "voice"))
+
                 except Exception as e:
-                    print(f"Streaming error: {e}")
+                    logger.error(f"Streaming error: {e}")
                     # Fallback: stream an error message
                     fallback = "I apologize, I'm having trouble right now. Please try again."
                     await stream_text_to_retell(ws, fallback, response_id)
 
     except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"WebSocket error: {e}", exc_info=True)
     finally:
         # Clean up the mapping
-        if call_id in CALL_CUSTOMER_MAP:
-            del CALL_CUSTOMER_MAP[call_id]
-        print(f"Call ended: {customer_id}")
+        if call_id:
+            delete_call_mapping(call_id)
+        logger.info(f"Call ended: {customer_id}")
         await ws.close()
 
     return ws
 
 
-async def main():
-    print("Starting Retell LLM WebSocket + HTTP server on port 8080...")
+# === Application Setup ===
+
+async def on_shutdown(app):
+    """Cleanup on shutdown."""
+    await close_http_client()
+    logger.info("Server shutdown complete")
+
+
+def create_app() -> web.Application:
+    """Create and configure the aiohttp application."""
     app = web.Application()
+
+    # Core routes
+    app.router.add_route("GET", "/health", health)
     app.router.add_route("POST", "/create-call", create_call)
     app.router.add_route("OPTIONS", "/create-call", create_call)
     app.router.add_route("POST", "/chat", chat)
     app.router.add_route("OPTIONS", "/chat", chat)
     app.router.add_route("GET", "/llm-websocket/{call_id}", llm_websocket)
+
+    # Analytics API routes
+    app.router.add_route("GET", "/api/analytics/stats", api_analytics_stats)
+    app.router.add_route("OPTIONS", "/api/analytics/stats", api_analytics_stats)
+    app.router.add_route("GET", "/api/analytics/conversations", api_analytics_conversations)
+    app.router.add_route("OPTIONS", "/api/analytics/conversations", api_analytics_conversations)
+
+    # Domain management API routes
+    app.router.add_route("GET", "/api/domains", api_domains_list)
+    app.router.add_route("POST", "/api/domains", api_domain_create)
+    app.router.add_route("PUT", "/api/domains", api_domain_update)
+    app.router.add_route("OPTIONS", "/api/domains", api_domains_list)  # Single OPTIONS handler
+
+    # Voice API
+    app.router.add_route("GET", "/api/voices", api_voices_list)
+    app.router.add_route("OPTIONS", "/api/voices", api_voices_list)
+
+    # Static files - serve frontend from parent directory
+    import os
+    static_dir = os.path.join(os.path.dirname(__file__), "..")
+
+    # Serve specific HTML files
+    async def serve_file(request: web.Request, filename: str) -> web.StreamResponse:
+        filepath = os.path.join(static_dir, filename)
+        if os.path.exists(filepath):
+            return web.FileResponse(filepath)
+        return web.Response(text="Not found", status=404)
+
+    app.router.add_route("GET", "/", lambda r: serve_file(r, "landing.html"))
+    app.router.add_route("GET", "/index.html", lambda r: serve_file(r, "index.html"))
+    app.router.add_route("GET", "/landing.html", lambda r: serve_file(r, "landing.html"))
+    app.router.add_route("GET", "/admin.html", lambda r: serve_file(r, "admin.html"))
+    app.router.add_route("GET", "/widget.js", lambda r: serve_file(r, "widget.js"))
+    app.router.add_route("GET", "/widget-demo.html", lambda r: serve_file(r, "widget-demo.html"))
+
+    # Register shutdown handler
+    app.on_shutdown.append(on_shutdown)
+
+    return app
+
+
+async def main():
+    """Main entry point."""
+    logger.info("Starting Omni AI server on port 8080...")
+    app = create_app()
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
-    await asyncio.Future()
+    logger.info("Server started successfully")
+    await asyncio.Future()  # Run forever
 
 
 if __name__ == "__main__":

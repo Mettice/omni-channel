@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget Demo - Omni AI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      min-height: 100vh;
+    }
+
+    .demo-header {
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 24px;
+    }
+
+    .demo-header h1 {
+      font-size: 20px;
+      color: #1e293b;
+    }
+
+    .demo-content {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    .demo-section {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .demo-section h2 {
+      font-size: 18px;
+      color: #1e293b;
+      margin-bottom: 16px;
+    }
+
+    .demo-section p {
+      color: #64748b;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .code-block {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .code-block code {
+      color: #e2e8f0;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .code-block .tag { color: #f472b6; }
+    .code-block .attr { color: #7dd3fc; }
+    .code-block .string { color: #86efac; }
+    .code-block .comment { color: #64748b; }
+
+    .options-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+
+    .options-table th,
+    .options-table td {
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .options-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 13px;
+    }
+
+    .options-table td {
+      font-size: 14px;
+      color: #475569;
+    }
+
+    .options-table code {
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #6366f1;
+    }
+
+    .demo-note {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin-top: 16px;
+    }
+
+    .demo-note p {
+      color: #1e40af;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .demo-arrow {
+      position: fixed;
+      bottom: 100px;
+      right: 100px;
+      color: #6366f1;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(10px); }
+    }
+  </style>
+</head>
+<body>
+  <header class="demo-header">
+    <h1>Omni AI Widget Demo</h1>
+  </header>
+
+  <main class="demo-content">
+    <section class="demo-section">
+      <h2>Quick Start</h2>
+      <p>Add this single line of code to your website, just before the closing <code>&lt;/body&gt;</code> tag:</p>
+      <div class="code-block">
+        <code>
+<span class="tag">&lt;script</span> <span class="attr">src</span>=<span class="string">"https://your-domain.com/widget.js"</span><span class="tag">&gt;&lt;/script&gt;</span>
+        </code>
+      </div>
+      <div class="demo-note">
+        <p><strong>Try it now!</strong> Look at the bottom-right corner of this page to see the widget in action.</p>
+      </div>
+    </section>
+
+    <section class="demo-section">
+      <h2>Customization Options</h2>
+      <p>Customize the widget using data attributes:</p>
+      <div class="code-block">
+        <code>
+<span class="tag">&lt;script</span> <span class="attr">src</span>=<span class="string">"https://your-domain.com/widget.js"</span>
+  <span class="attr">data-api</span>=<span class="string">"https://your-api.com"</span>
+  <span class="attr">data-position</span>=<span class="string">"right"</span>
+  <span class="attr">data-color</span>=<span class="string">"#6366f1"</span>
+  <span class="attr">data-title</span>=<span class="string">"Support"</span>
+  <span class="attr">data-greeting</span>=<span class="string">"Hi! How can I help?"</span>
+<span class="tag">&gt;&lt;/script&gt;</span>
+        </code>
+      </div>
+
+      <table class="options-table">
+        <thead>
+          <tr>
+            <th>Attribute</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>data-api</code></td>
+            <td>Omni API</td>
+            <td>Your backend API URL</td>
+          </tr>
+          <tr>
+            <td><code>data-position</code></td>
+            <td><code>right</code></td>
+            <td>Widget position: <code>left</code> or <code>right</code></td>
+          </tr>
+          <tr>
+            <td><code>data-color</code></td>
+            <td><code>#6366f1</code></td>
+            <td>Primary color (hex)</td>
+          </tr>
+          <tr>
+            <td><code>data-title</code></td>
+            <td><code>Omni AI</code></td>
+            <td>Header title text</td>
+          </tr>
+          <tr>
+            <td><code>data-greeting</code></td>
+            <td><code>Hi! How can I help you today?</code></td>
+            <td>Initial greeting message</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="demo-section">
+      <h2>Features</h2>
+      <p>The embeddable widget includes:</p>
+      <ul style="margin-left: 24px; color: #475569; line-height: 2;">
+        <li>Lightweight (~5KB gzipped)</li>
+        <li>No dependencies</li>
+        <li>Mobile responsive</li>
+        <li>Persistent session across page reloads</li>
+        <li>Smooth animations</li>
+        <li>Customizable colors and text</li>
+        <li>Accessible (keyboard navigation, ARIA labels)</li>
+      </ul>
+    </section>
+
+    <section class="demo-section">
+      <h2>Self-Hosting</h2>
+      <p>To self-host the widget:</p>
+      <ol style="margin-left: 24px; color: #475569; line-height: 2;">
+        <li>Download <code>widget.js</code> from your Omni AI dashboard</li>
+        <li>Upload to your CDN or static file server</li>
+        <li>Update the script src to your hosted URL</li>
+        <li>Configure <code>data-api</code> to point to your backend</li>
+      </ol>
+    </section>
+  </main>
+
+  <div class="demo-arrow">
+    Try the widget →
+  </div>
+
+  <!-- The widget is loaded here -->
+  <script src="widget.js"
+    data-color="#6366f1"
+    data-title="Support"
+    data-greeting="Hi! I'm Omni, your AI assistant. How can I help you today?"
+  ></script>
+</body>
+</html>

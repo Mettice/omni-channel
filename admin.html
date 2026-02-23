@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omni AI - Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --secondary: #0ea5e9;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border: #334155;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* Layout */
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      flex-shrink: 0;
+    }
+
+    .main {
+      flex: 1;
+      padding: 24px 32px;
+      overflow-y: auto;
+    }
+
+    /* Sidebar */
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: white;
+      fill: none;
+    }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .nav {
+      list-style: none;
+    }
+
+    .nav-item {
+      margin-bottom: 4px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+    }
+
+    .nav-link.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .nav-icon {
+      font-size: 18px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .stat-change {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-change.positive {
+      color: var(--success);
+    }
+
+    .stat-change.negative {
+      color: var(--danger);
+    }
+
+    /* Charts */
+    .chart-section {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid var(--border);
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .chart-placeholder {
+      min-height: 180px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 8px 0;
+    }
+
+    .channel-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .channel-label {
+      min-width: 60px;
+      font-size: 13px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .channel-bar-track {
+      flex: 1;
+      height: 28px;
+      background: var(--bg-input);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .channel-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      transition: width 0.5s ease;
+    }
+
+    .channel-bar-fill.voice {
+      background: linear-gradient(90deg, var(--primary), #818cf8);
+    }
+
+    .channel-bar-fill.chat {
+      background: linear-gradient(90deg, var(--secondary), #38bdf8);
+    }
+
+    .channel-bar-fill.widget {
+      background: linear-gradient(90deg, var(--success), #34d399);
+    }
+
+    /* Tables */
+    .table-card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .table-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    td {
+      font-size: 14px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-voice {
+      background: rgba(99, 102, 241, 0.2);
+      color: var(--primary);
+    }
+
+    .badge-chat {
+      background: rgba(14, 165, 233, 0.2);
+      color: var(--secondary);
+    }
+
+    .badge-widget {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+    }
+
+    /* Domains Page */
+    .domains-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .domain-card {
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .domain-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .domain-color {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+    }
+
+    .domain-name {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .domain-id {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .domain-body {
+      padding: 20px;
+    }
+
+    .domain-field {
+      margin-bottom: 16px;
+    }
+
+    .domain-field label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .domain-field textarea,
+    .domain-field input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+    }
+
+    .domain-field textarea {
+      min-height: 80px;
+    }
+
+    .domain-field input:focus,
+    .domain-field textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .domain-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 24px;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .form-field {
+      margin-bottom: 20px;
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .form-field input,
+    .form-field textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    .form-field textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* Page sections */
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    /* Pie chart simple */
+    .intent-list {
+      list-style: none;
+    }
+
+    .intent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .intent-item:last-child {
+      border-bottom: none;
+    }
+
+    .intent-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .intent-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .intent-count {
+      font-weight: 600;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .chart-section {
+        grid-template-columns: 1fr;
+      }
+
+      .domains-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .domains-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" stroke-width="2">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+        </div>
+        <span class="logo-text">Omni AI</span>
+      </div>
+
+      <ul class="nav">
+        <li class="nav-item">
+          <a class="nav-link active" data-page="dashboard">
+            <span class="nav-icon">📊</span>
+            Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-page="conversations">
+            <span class="nav-icon">💬</span>
+            Conversations
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-page="domains">
+            <span class="nav-icon">🏢</span>
+            Domains
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-page="settings">
+            <span class="nav-icon">⚙️</span>
+            Settings
+          </a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Dashboard Page -->
+      <div class="page active" id="page-dashboard">
+        <div class="header">
+          <h1>Dashboard</h1>
+          <div class="header-actions">
+            <select class="btn btn-secondary" id="periodSelect">
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+            <button class="btn btn-primary" onclick="refreshDashboard()">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Demo Mode Banner -->
+        <div id="demoBanner" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(14, 165, 233, 0.1)); border: 1px solid var(--primary); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 18px;">✨</span>
+          <span style="font-size: 13px; color: var(--text-secondary);">
+            <strong style="color: var(--primary);">Demo Mode</strong> — Showing sample data. Connect your API in Settings to see real analytics.
+          </span>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card">
+            <div class="stat-label">Total Conversations</div>
+            <div class="stat-value" id="statConversations">-</div>
+            <div class="stat-change positive" id="statConvChange">+12% from last period</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Messages</div>
+            <div class="stat-value" id="statMessages">-</div>
+            <div class="stat-change positive">Across all channels</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Response Time</div>
+            <div class="stat-value" id="statResponseTime">-</div>
+            <div class="stat-change" style="color: var(--success);">ms — Sub-second responses</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Resolution Rate</div>
+            <div class="stat-value" id="statResolution">-</div>
+            <div class="stat-change positive">Without human escalation</div>
+          </div>
+        </div>
+
+        <div class="chart-section">
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">Channel Distribution</h3>
+            </div>
+            <div id="channelChart" class="chart-placeholder">
+              Loading channel data...
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">Top Intents</h3>
+            </div>
+            <ul class="intent-list" id="intentList">
+              <li class="loading">Loading intents...</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversations Page -->
+      <div class="page" id="page-conversations">
+        <div class="header">
+          <h1>Conversations</h1>
+          <div class="header-actions">
+            <select class="btn btn-secondary" id="channelFilter">
+              <option value="">All Channels</option>
+              <option value="voice">Voice</option>
+              <option value="chat">Chat</option>
+              <option value="widget">Widget</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Channel</th>
+                <th>Messages</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Started</th>
+              </tr>
+            </thead>
+            <tbody id="conversationsTable">
+              <tr>
+                <td colspan="6" class="loading">Loading conversations...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Domains Page -->
+      <div class="page" id="page-domains">
+        <div class="header">
+          <h1>Domain Configurations</h1>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="showCreateDomainModal()">
+              + New Domain
+            </button>
+          </div>
+        </div>
+
+        <div class="domains-grid" id="domainsGrid">
+          <div class="loading">Loading domains...</div>
+        </div>
+      </div>
+
+      <!-- Settings Page -->
+      <div class="page" id="page-settings">
+        <div class="header">
+          <h1>Settings</h1>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3 class="chart-title">API Configuration</h3>
+          </div>
+          <div class="form-field">
+            <label>API Base URL</label>
+            <input type="text" id="settingApiUrl" value="https://omni-channel-production-54be.up.railway.app">
+          </div>
+          <div class="form-field">
+            <label>Current Domain</label>
+            <input type="text" id="settingDomain" value="generic" readonly>
+          </div>
+          <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Domain Modal -->
+  <div class="modal-overlay" id="createDomainModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Create New Domain</h3>
+        <button class="modal-close" onclick="hideModal('createDomainModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label>Domain ID</label>
+          <input type="text" id="newDomainId" placeholder="e.g., automotive">
+        </div>
+        <div class="form-field">
+          <label>Display Name</label>
+          <input type="text" id="newDomainName" placeholder="e.g., Automotive Support">
+        </div>
+        <div class="form-field">
+          <label>System Prompt</label>
+          <textarea id="newDomainPrompt" placeholder="You are a helpful automotive support agent..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>Greeting Message</label>
+          <input type="text" id="newDomainGreeting" placeholder="Welcome! How can I help with your vehicle?">
+        </div>
+        <div class="form-field">
+          <label>Primary Color</label>
+          <input type="color" id="newDomainColor" value="#6366f1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="hideModal('createDomainModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="createDomain()">Create Domain</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration - auto-detect API URL
+    const DEFAULT_API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'https://omni-channel-production-54be.up.railway.app'
+      : window.location.origin;
+    let API_BASE = localStorage.getItem('omni_api_url') || DEFAULT_API;
+    let USE_DEMO_DATA = true; // Set to false when API is ready
+
+    // Demo Data
+    const DEMO_DATA = {
+      stats: {
+        total_conversations: 1247,
+        total_messages: 8934,
+        avg_response_time_ms: 342,
+        resolution_rate: 94,
+        channels: {
+          voice: 423,
+          chat: 612,
+          widget: 212
+        },
+        top_intents: {
+          'book_appointment': 287,
+          'order_status': 234,
+          'contact_info': 189,
+          'pricing_inquiry': 156,
+          'escalate': 43
+        }
+      },
+      conversations: [
+        { customer_id: 'user_k8m2x9', channel: 'voice', message_count: 12, start_time: new Date(Date.now() - 3600000).toISOString(), end_time: new Date(Date.now() - 3000000).toISOString(), resolved: true, escalated: false },
+        { customer_id: 'user_p3n7q1', channel: 'chat', message_count: 8, start_time: new Date(Date.now() - 7200000).toISOString(), end_time: new Date(Date.now() - 6800000).toISOString(), resolved: true, escalated: false },
+        { customer_id: 'user_r5t2w8', channel: 'widget', message_count: 5, start_time: new Date(Date.now() - 10800000).toISOString(), end_time: null, resolved: false, escalated: false },
+        { customer_id: 'user_j9k4m6', channel: 'voice', message_count: 18, start_time: new Date(Date.now() - 14400000).toISOString(), end_time: new Date(Date.now() - 13200000).toISOString(), resolved: false, escalated: true },
+        { customer_id: 'user_h2l5n9', channel: 'chat', message_count: 6, start_time: new Date(Date.now() - 18000000).toISOString(), end_time: new Date(Date.now() - 17400000).toISOString(), resolved: true, escalated: false },
+        { customer_id: 'user_q8w3e7', channel: 'voice', message_count: 9, start_time: new Date(Date.now() - 21600000).toISOString(), end_time: new Date(Date.now() - 21000000).toISOString(), resolved: true, escalated: false },
+        { customer_id: 'user_a1s4d6', channel: 'widget', message_count: 4, start_time: new Date(Date.now() - 25200000).toISOString(), end_time: new Date(Date.now() - 24900000).toISOString(), resolved: true, escalated: false },
+        { customer_id: 'user_z9x2c5', channel: 'chat', message_count: 15, start_time: new Date(Date.now() - 28800000).toISOString(), end_time: new Date(Date.now() - 27600000).toISOString(), resolved: true, escalated: false }
+      ],
+      domains: [
+        { domain: 'generic', display_name: 'Generic Support', primary_color: '#6366f1', system_prompt: 'You are a helpful AI assistant that provides excellent customer support. Be friendly, professional, and helpful.', greeting: 'Hi! How can I help you today?' },
+        { domain: 'ecommerce', display_name: 'E-Commerce', primary_color: '#10b981', system_prompt: 'You are a helpful e-commerce customer support agent. Help customers with orders, returns, shipping, and product inquiries.', greeting: 'Welcome to our store! How can I assist you with your order?' },
+        { domain: 'healthcare', display_name: 'Healthcare', primary_color: '#0ea5e9', system_prompt: 'You are a healthcare support assistant. Help patients book appointments, answer general questions, and provide guidance on medical services.', greeting: 'Hello! How may I assist you with your healthcare needs today?' },
+        { domain: 'realestate', display_name: 'Real Estate', primary_color: '#f59e0b', system_prompt: 'You are a real estate assistant. Help clients with property inquiries, schedule viewings, and provide information about listings.', greeting: 'Welcome! Looking for your dream property? How can I help?' },
+        { domain: 'fintech', display_name: 'Financial Services', primary_color: '#8b5cf6', system_prompt: 'You are a financial services assistant. Help customers with account inquiries, transactions, and general banking questions.', greeting: 'Hello! How can I assist you with your financial needs today?' },
+        { domain: 'automotive', display_name: 'Automotive', primary_color: '#ef4444', system_prompt: 'You are an automotive support assistant. Help customers with vehicle inquiries, service appointments, and parts information.', greeting: 'Welcome! How can I help you with your vehicle today?' }
+      ]
+    };
+
+    // Navigation
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        const page = link.dataset.page;
+        showPage(page);
+      });
+    });
+
+    function showPage(pageName) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+      document.getElementById(`page-${pageName}`).classList.add('active');
+      document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+
+      // Load data for the page
+      if (pageName === 'dashboard') refreshDashboard();
+      if (pageName === 'conversations') loadConversations();
+      if (pageName === 'domains') loadDomains();
+    }
+
+    // Dashboard
+    async function refreshDashboard() {
+      const days = document.getElementById('periodSelect').value;
+
+      let data = null;
+
+      // Try API first, fallback to demo data
+      if (!USE_DEMO_DATA) {
+        try {
+          const res = await fetch(`${API_BASE}/api/analytics/stats?days=${days}`);
+          data = await res.json();
+        } catch (error) {
+          console.log('API unavailable, using demo data');
+        }
+      }
+
+      // Use demo data if API failed or demo mode
+      if (!data) {
+        data = DEMO_DATA.stats;
+      }
+
+      document.getElementById('statConversations').textContent = data.total_conversations || 0;
+      document.getElementById('statMessages').textContent = data.total_messages || 0;
+      document.getElementById('statResponseTime').textContent = Math.round(data.avg_response_time_ms || 0);
+      document.getElementById('statResolution').textContent = `${data.resolution_rate || 0}%`;
+
+      // Channel distribution with bar chart
+      const channels = data.channels || {};
+      const maxCount = Math.max(...Object.values(channels), 1);
+      const channelHtml = Object.entries(channels).map(([ch, count]) => {
+        const percentage = Math.round((count / maxCount) * 100);
+        return `
+          <div class="channel-bar">
+            <span class="channel-label">${ch}</span>
+            <div class="channel-bar-track">
+              <div class="channel-bar-fill ${ch}" style="width: ${percentage}%">${count}</div>
+            </div>
+          </div>
+        `;
+      }).join('') || '<div class="loading">No data</div>';
+      document.getElementById('channelChart').innerHTML = channelHtml;
+
+      // Top intents
+      const intents = data.top_intents || {};
+      const colors = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444'];
+      const intentHtml = Object.entries(intents).map(([intent, count], i) => `
+        <li class="intent-item">
+          <span class="intent-name">
+            <span class="intent-dot" style="background: ${colors[i % colors.length]}"></span>
+            ${intent.replace(/_/g, ' ')}
+          </span>
+          <span class="intent-count">${count}</span>
+        </li>
+      `).join('') || '<li class="loading">No intents detected</li>';
+      document.getElementById('intentList').innerHTML = intentHtml;
+    }
+
+    // Conversations
+    async function loadConversations() {
+      const channel = document.getElementById('channelFilter').value;
+
+      let data = null;
+
+      // Try API first, fallback to demo data
+      if (!USE_DEMO_DATA) {
+        try {
+          const url = channel
+            ? `${API_BASE}/api/analytics/conversations?channel=${channel}`
+            : `${API_BASE}/api/analytics/conversations`;
+          const res = await fetch(url);
+          data = await res.json();
+        } catch (error) {
+          console.log('API unavailable, using demo data');
+        }
+      }
+
+      // Use demo data if API failed or demo mode
+      if (!data) {
+        let conversations = DEMO_DATA.conversations;
+        if (channel) {
+          conversations = conversations.filter(c => c.channel === channel);
+        }
+        data = { conversations };
+      }
+
+      const tbody = document.getElementById('conversationsTable');
+
+      if (!data.conversations || data.conversations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">No conversations found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.conversations.map(conv => {
+        const startTime = new Date(conv.start_time);
+        const endTime = conv.end_time ? new Date(conv.end_time) : null;
+        const duration = endTime ? Math.round((endTime - startTime) / 1000 / 60) : '-';
+
+        return `
+          <tr>
+            <td><code style="background: var(--bg-input); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${conv.customer_id}</code></td>
+            <td><span class="badge badge-${conv.channel}">${conv.channel}</span></td>
+            <td>${conv.message_count}</td>
+            <td>${duration} min</td>
+            <td>
+              ${conv.escalated
+                ? '<span class="badge badge-warning">Escalated</span>'
+                : conv.resolved
+                  ? '<span class="badge badge-success">Resolved</span>'
+                  : '<span class="badge">In Progress</span>'
+              }
+            </td>
+            <td>${startTime.toLocaleString()}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('channelFilter').addEventListener('change', loadConversations);
+
+    // Domains
+    async function loadDomains() {
+      let data = null;
+
+      // Try API first, fallback to demo data
+      if (!USE_DEMO_DATA) {
+        try {
+          const res = await fetch(`${API_BASE}/api/domains`);
+          data = await res.json();
+        } catch (error) {
+          console.log('API unavailable, using demo data');
+        }
+      }
+
+      // Use demo data if API failed or demo mode
+      if (!data) {
+        data = { domains: DEMO_DATA.domains };
+      }
+
+      const grid = document.getElementById('domainsGrid');
+
+      if (!data.domains || data.domains.length === 0) {
+        grid.innerHTML = '<div class="loading">No domains configured</div>';
+        return;
+      }
+
+      grid.innerHTML = data.domains.map(domain => `
+        <div class="domain-card" data-domain="${domain.domain}">
+          <div class="domain-header">
+            <div class="domain-color" style="background: ${domain.primary_color || '#6366f1'}"></div>
+            <div>
+              <div class="domain-name">${domain.display_name}</div>
+              <div class="domain-id">${domain.domain}</div>
+            </div>
+          </div>
+          <div class="domain-body">
+            <div class="domain-field">
+              <label>System Prompt</label>
+              <textarea id="prompt-${domain.domain}">${domain.system_prompt}</textarea>
+            </div>
+            <div class="domain-field">
+              <label>Greeting</label>
+              <input type="text" id="greeting-${domain.domain}" value="${domain.greeting}">
+            </div>
+          </div>
+          <div class="domain-footer">
+            <button class="btn btn-secondary" onclick="resetDomain('${domain.domain}')">Reset</button>
+            <button class="btn btn-primary" onclick="saveDomain('${domain.domain}')">Save</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function saveDomain(domainId) {
+      const prompt = document.getElementById(`prompt-${domainId}`).value;
+      const greeting = document.getElementById(`greeting-${domainId}`).value;
+
+      try {
+        await fetch(`${API_BASE}/api/domains`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain: domainId,
+            system_prompt: prompt,
+            greeting: greeting
+          })
+        });
+        alert('Domain saved successfully!');
+      } catch (error) {
+        console.error('Failed to save domain:', error);
+        alert('Failed to save domain');
+      }
+    }
+
+    function resetDomain(domainId) {
+      loadDomains(); // Just reload from server
+    }
+
+    // Modal
+    function showCreateDomainModal() {
+      document.getElementById('createDomainModal').classList.add('active');
+    }
+
+    function hideModal(modalId) {
+      document.getElementById(modalId).classList.remove('active');
+    }
+
+    async function createDomain() {
+      const domain = document.getElementById('newDomainId').value;
+      const displayName = document.getElementById('newDomainName').value;
+      const prompt = document.getElementById('newDomainPrompt').value;
+      const greeting = document.getElementById('newDomainGreeting').value;
+      const color = document.getElementById('newDomainColor').value;
+
+      if (!domain || !displayName || !prompt || !greeting) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      try {
+        await fetch(`${API_BASE}/api/domains`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain,
+            display_name: displayName,
+            system_prompt: prompt,
+            greeting,
+            primary_color: color
+          })
+        });
+
+        hideModal('createDomainModal');
+        loadDomains();
+        alert('Domain created successfully!');
+      } catch (error) {
+        console.error('Failed to create domain:', error);
+        alert('Failed to create domain');
+      }
+    }
+
+    // Settings
+    function saveSettings() {
+      const apiUrl = document.getElementById('settingApiUrl').value;
+      localStorage.setItem('omni_api_url', apiUrl);
+      API_BASE = apiUrl;
+      alert('Settings saved!');
+    }
+
+    // Load API URL from settings
+    document.getElementById('settingApiUrl').value = API_BASE;
+
+    // Initial load
+    refreshDashboard();
+  </script>
+</body>
+</html>
