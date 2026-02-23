@@ -3,13 +3,22 @@ Intent detection and n8n webhook integration for Omni AI.
 """
 import httpx
 
-from .config import (
-    N8N_WEBHOOK_BASE,
-    DOMAIN,
-    WEBHOOK_TIMEOUT,
-    get_intent_patterns,
-    logger
-)
+try:
+    from .config import (
+        N8N_WEBHOOK_BASE,
+        DOMAIN,
+        WEBHOOK_TIMEOUT,
+        get_intent_patterns,
+        logger
+    )
+except ImportError:
+    from config import (
+        N8N_WEBHOOK_BASE,
+        DOMAIN,
+        WEBHOOK_TIMEOUT,
+        get_intent_patterns,
+        logger
+    )
 
 
 async def detect_and_trigger_intents(

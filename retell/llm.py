@@ -5,12 +5,20 @@ import json
 import httpx
 from typing import Optional
 
-from .config import (
-    OPENAI_API_KEY,
-    OPENAI_TIMEOUT,
-    MAX_TOKENS,
-    logger
-)
+try:
+    from .config import (
+        OPENAI_API_KEY,
+        OPENAI_TIMEOUT,
+        MAX_TOKENS,
+        logger
+    )
+except ImportError:
+    from config import (
+        OPENAI_API_KEY,
+        OPENAI_TIMEOUT,
+        MAX_TOKENS,
+        logger
+    )
 
 # Shared HTTP client for connection pooling
 _http_client: Optional[httpx.AsyncClient] = None

@@ -9,8 +9,12 @@ from datetime import datetime, timezone
 from typing import Optional
 from dataclasses import dataclass, asdict
 
-from .db import get_supabase
-from .config import DOMAIN, logger
+try:
+    from .db import get_supabase
+    from .config import DOMAIN, logger
+except ImportError:
+    from db import get_supabase
+    from config import DOMAIN, logger
 
 
 @dataclass

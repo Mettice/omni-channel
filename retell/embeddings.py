@@ -9,7 +9,10 @@ import numpy as np
 from typing import Optional
 import httpx
 
-from .config import OPENAI_API_KEY, DOMAIN, logger
+try:
+    from .config import OPENAI_API_KEY, DOMAIN, logger
+except ImportError:
+    from config import OPENAI_API_KEY, DOMAIN, logger
 
 # Embedding model - text-embedding-3-small is fast and cheap
 EMBEDDING_MODEL = "text-embedding-3-small"

@@ -4,12 +4,20 @@ Database operations for Omni AI using Supabase.
 from typing import Optional
 from supabase import create_client, Client
 
-from .config import (
-    SUPABASE_URL,
-    SUPABASE_KEY,
-    HISTORY_LIMIT,
-    logger
-)
+try:
+    from .config import (
+        SUPABASE_URL,
+        SUPABASE_KEY,
+        HISTORY_LIMIT,
+        logger
+    )
+except ImportError:
+    from config import (
+        SUPABASE_URL,
+        SUPABASE_KEY,
+        HISTORY_LIMIT,
+        logger
+    )
 
 # Initialize Supabase client
 _supabase: Optional[Client] = None

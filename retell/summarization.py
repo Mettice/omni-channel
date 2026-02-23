@@ -7,7 +7,10 @@ context limits while preserving important information.
 import httpx
 from typing import Optional
 
-from .config import OPENAI_API_KEY, HISTORY_LIMIT, logger
+try:
+    from .config import OPENAI_API_KEY, HISTORY_LIMIT, logger
+except ImportError:
+    from config import OPENAI_API_KEY, HISTORY_LIMIT, logger
 
 # Summarization settings
 MAX_MESSAGES_BEFORE_SUMMARY = 20  # Trigger summarization after this many messages
