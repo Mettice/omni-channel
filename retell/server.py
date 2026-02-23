@@ -11,40 +11,77 @@ from collections import defaultdict
 from aiohttp import web
 import aiohttp
 
-from .config import (
-    RETELL_AGENT_ID,
-    RETELL_API_KEY,
-    STREAMING_CHUNK_DELAY,
-    N8N_WEBHOOK_BASE,
-    VOICE_AGENTS,
-    get_voice_agent,
-    get_system_prompt,
-    get_greeting,
-    logger
-)
-from .db import (
-    get_customer_messages,
-    save_message,
-    store_call_mapping,
-    get_call_mapping,
-    delete_call_mapping
-)
-from .llm import (
-    generate_response,
-    generate_response_streaming,
-    close_http_client
-)
-from .intents import detect_and_trigger_intents
-from .embeddings import detect_intents_hybrid
-from .summarization import smart_context_management
-from .analytics import (
-    start_conversation,
-    track_message,
-    track_intent,
-    end_conversation,
-    get_dashboard_stats,
-    get_conversations_list
-)
+# Support both package and direct execution
+try:
+    from .config import (
+        RETELL_AGENT_ID,
+        RETELL_API_KEY,
+        STREAMING_CHUNK_DELAY,
+        N8N_WEBHOOK_BASE,
+        VOICE_AGENTS,
+        get_voice_agent,
+        get_system_prompt,
+        get_greeting,
+        logger
+    )
+    from .db import (
+        get_customer_messages,
+        save_message,
+        store_call_mapping,
+        get_call_mapping,
+        delete_call_mapping
+    )
+    from .llm import (
+        generate_response,
+        generate_response_streaming,
+        close_http_client
+    )
+    from .intents import detect_and_trigger_intents
+    from .embeddings import detect_intents_hybrid
+    from .summarization import smart_context_management
+    from .analytics import (
+        start_conversation,
+        track_message,
+        track_intent,
+        end_conversation,
+        get_dashboard_stats,
+        get_conversations_list
+    )
+except ImportError:
+    from config import (
+        RETELL_AGENT_ID,
+        RETELL_API_KEY,
+        STREAMING_CHUNK_DELAY,
+        N8N_WEBHOOK_BASE,
+        VOICE_AGENTS,
+        get_voice_agent,
+        get_system_prompt,
+        get_greeting,
+        logger
+    )
+    from db import (
+        get_customer_messages,
+        save_message,
+        store_call_mapping,
+        get_call_mapping,
+        delete_call_mapping
+    )
+    from llm import (
+        generate_response,
+        generate_response_streaming,
+        close_http_client
+    )
+    from intents import detect_and_trigger_intents
+    from embeddings import detect_intents_hybrid
+    from summarization import smart_context_management
+    from analytics import (
+        start_conversation,
+        track_message,
+        track_intent,
+        end_conversation,
+        get_dashboard_stats,
+        get_conversations_list
+    )
 
 # === Rate Limiting ===
 # Simple in-memory rate limiter (use Redis in production for multi-instance)
@@ -662,9 +699,10 @@ def create_app() -> web.Application:
             return web.FileResponse(filepath)
         return web.Response(text="Not found", status=404)
 
-    app.router.add_route("GET", "/", lambda r: serve_file(r, "landing.html"))
+    app.router.add_route("GET", "/", lambda r: serve_file(r, "index.html"))
     app.router.add_route("GET", "/index.html", lambda r: serve_file(r, "index.html"))
-    app.router.add_route("GET", "/landing.html", lambda r: serve_file(r, "landing.html"))
+    app.router.add_route("GET", "/demo.html", lambda r: serve_file(r, "demo.html"))
+    app.router.add_route("GET", "/landing.html", lambda r: serve_file(r, "index.html"))  # backwards compat
     app.router.add_route("GET", "/admin.html", lambda r: serve_file(r, "admin.html"))
     app.router.add_route("GET", "/widget.js", lambda r: serve_file(r, "widget.js"))
     app.router.add_route("GET", "/widget-demo.html", lambda r: serve_file(r, "widget-demo.html"))
