@@ -36,7 +36,8 @@
       box-sizing: border-box;
     }
 
-    html, body {
+    html,
+    body {
       height: 100%;
       overflow: hidden;
     }
@@ -136,8 +137,15 @@
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
     }
 
     /* Mode Toggle */
@@ -237,6 +245,7 @@
         opacity: 0;
         transform: translateY(10px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -301,13 +310,29 @@
       animation: typingBounce 1.4s infinite ease-in-out;
     }
 
-    .typing-dots span:nth-child(1) { animation-delay: 0s; }
-    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    .typing-dots span:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .typing-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
 
     @keyframes typingBounce {
-      0%, 60%, 100% { transform: translateY(0); }
-      30% { transform: translateY(-6px); }
+
+      0%,
+      60%,
+      100% {
+        transform: translateY(0);
+      }
+
+      30% {
+        transform: translateY(-6px);
+      }
     }
 
     .typing-text {
@@ -433,15 +458,30 @@
       animation: voiceRing 2s infinite;
     }
 
-    .voice-ring:nth-child(1) { width: 100%; height: 100%; animation-delay: 0s; }
-    .voice-ring:nth-child(2) { width: 130%; height: 130%; animation-delay: 0.4s; }
-    .voice-ring:nth-child(3) { width: 160%; height: 160%; animation-delay: 0.8s; }
+    .voice-ring:nth-child(1) {
+      width: 100%;
+      height: 100%;
+      animation-delay: 0s;
+    }
+
+    .voice-ring:nth-child(2) {
+      width: 130%;
+      height: 130%;
+      animation-delay: 0.4s;
+    }
+
+    .voice-ring:nth-child(3) {
+      width: 160%;
+      height: 160%;
+      animation-delay: 0.8s;
+    }
 
     @keyframes voiceRing {
       0% {
         opacity: 0.6;
         transform: scale(0.8);
       }
+
       100% {
         opacity: 0;
         transform: scale(1);
@@ -649,9 +689,9 @@
         <div class="brand">
           <div class="brand-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" x2="12" y1="19" y2="22"/>
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" x2="12" y1="19" y2="22" />
             </svg>
           </div>
           <div class="brand-info">
@@ -700,13 +740,7 @@
 
       <div class="chat-input-container">
         <div class="chat-input-wrapper">
-          <input
-            type="text"
-            class="chat-input"
-            id="chatInput"
-            placeholder="Type your message..."
-            autocomplete="off"
-          />
+          <input type="text" class="chat-input" id="chatInput" placeholder="Type your message..." autocomplete="off" />
           <button class="send-btn" id="sendBtn" title="Send message">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -736,9 +770,10 @@
       <!-- Voice Selector -->
       <div class="voice-selector" id="voiceSelector">
         <label for="voiceSelect">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="vertical-align: middle;">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
           </svg>
           Voice:
         </label>
@@ -772,10 +807,9 @@
   <script type="module">
     import { RetellWebClient } from 'https://cdn.jsdelivr.net/npm/retell-client-js-sdk@2.0.7/+esm';
 
-    // Configuration - auto-detect API URL (same origin in production, or Railway URL)
-    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'https://omni-channel-production-54be.up.railway.app'  // Local dev uses Railway
-      : window.location.origin;  // Production uses same origin
+    // Configuration - point to the Omni AI backend API
+    // When deploying frontend setup to Vercel/Netlify, we must use the deployed backend URL
+    const API_BASE = 'https://omni-channel-production-54be.up.railway.app';
     const CHAT_URL = `${API_BASE}/chat`;
     const CALL_URL = `${API_BASE}/create-call`;
 

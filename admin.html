@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -325,7 +326,8 @@
       border-collapse: collapse;
     }
 
-    th, td {
+    th,
+    td {
       text-align: left;
       padding: 16px 24px;
       border-bottom: 1px solid var(--border);
@@ -637,6 +639,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="app">
     <!-- Sidebar -->
@@ -644,9 +647,9 @@
       <div class="logo">
         <div class="logo-icon">
           <svg viewBox="0 0 24 24" stroke-width="2">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" x2="12" y1="19" y2="22"/>
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
           </svg>
         </div>
         <span class="logo-text">Omni AI</span>
@@ -697,10 +700,12 @@
         </div>
 
         <!-- Demo Mode Banner -->
-        <div id="demoBanner" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(14, 165, 233, 0.1)); border: 1px solid var(--primary); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <div id="demoBanner"
+          style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(14, 165, 233, 0.1)); border: 1px solid var(--primary); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 18px;">✨</span>
           <span style="font-size: 13px; color: var(--text-secondary);">
-            <strong style="color: var(--primary);">Demo Mode</strong> — Showing sample data. Connect your API in Settings to see real analytics.
+            <strong style="color: var(--primary);">Demo Mode</strong> — Showing sample data. Connect your API in
+            Settings to see real analytics.
           </span>
         </div>
 
@@ -859,10 +864,8 @@
   </div>
 
   <script>
-    // Configuration - auto-detect API URL
-    const DEFAULT_API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'https://omni-channel-production-54be.up.railway.app'
-      : window.location.origin;
+    // Configuration - point to the Omni AI backend API
+    const DEFAULT_API = 'https://omni-channel-production-54be.up.railway.app';
     let API_BASE = localStorage.getItem('omni_api_url') || DEFAULT_API;
     let USE_DEMO_DATA = true; // Set to false when API is ready
 
@@ -1032,11 +1035,11 @@
             <td>${duration} min</td>
             <td>
               ${conv.escalated
-                ? '<span class="badge badge-warning">Escalated</span>'
-                : conv.resolved
-                  ? '<span class="badge badge-success">Resolved</span>'
-                  : '<span class="badge">In Progress</span>'
-              }
+            ? '<span class="badge badge-warning">Escalated</span>'
+            : conv.resolved
+              ? '<span class="badge badge-success">Resolved</span>'
+              : '<span class="badge">In Progress</span>'
+          }
             </td>
             <td>${startTime.toLocaleString()}</td>
           </tr>
@@ -1182,4 +1185,5 @@
     refreshDashboard();
   </script>
 </body>
+
 </html>
