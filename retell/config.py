@@ -55,47 +55,42 @@ if _ENV_PATH:
     logger.info(f"Loaded environment from: {_ENV_PATH}")
 
 # === API Configuration ===
-RETELL_AGENT_ID = os.environ.get("RETELL_AGENT_ID", "agent_f604bb54a90edd0d700a3b40ca")
+# Default Retell agent (Cimo – US English)
+RETELL_AGENT_ID = os.environ.get("RETELL_AGENT_ID", "agent_f4bb7ff0d608222b30623eee4b")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 RETELL_API_KEY = os.environ.get("RETELL_API_KEY", "")
 N8N_WEBHOOK_BASE = os.environ.get("N8N_WEBHOOK_BASE", "")
-DOMAIN = os.environ.get("DOMAIN", "generic")
+# Default demo domain: spa / wellness for The Lumiere Spa
+DOMAIN = os.environ.get("DOMAIN", "spa")
 
 # === Voice Agent Configuration ===
 # Map of voice IDs to Retell agent configurations
-# To add more voices: create agents in Retell dashboard with different voice_ids
+# To add more voices: create agents in Retell dashboard with different agent_ids
 # Then add them here with a friendly name, language, and description
 VOICE_AGENTS = {
-    "default": {
-        "agent_id": RETELL_AGENT_ID,  # agent_f604bb54a90edd0d700a3b40ca
+    "cimo": {
+        "agent_id": "agent_f4bb7ff0d608222b30623eee4b",
         "name": "Cimo",
-        "language": "English",
+        "language": "English (US)",
         "gender": "male",
-        "description": "Professional English voice",
-        "preview_url": None  # Optional: URL to voice sample
+        "description": "American English concierge voice, ideal for spa and wellness bookings.",
+        "preview_url": None,  # Optional: URL to voice sample
     },
-    # Add more voices by creating agents in Retell with different voice_ids:
-    # "voice_sarah": {
-    #     "agent_id": "agent_xxx",
-    #     "name": "Sarah",
-    #     "language": "English (US)",
-    #     "gender": "female",
-    #     "description": "Friendly American female voice"
-    # },
-    # "voice_spanish": {
-    #     "agent_id": "agent_yyy",
-    #     "name": "Carlos",
-    #     "language": "Spanish",
-    #     "gender": "male",
-    #     "description": "Native Spanish speaker"
-    # },
+    "willa": {
+        "agent_id": "agent_f604bb54a90edd0d700a3b40ca",
+        "name": "Willa",
+        "language": "English (UK)",
+        "gender": "female",
+        "description": "Calm British spa concierge voice, perfect for The Lumiere Spa demo.",
+        "preview_url": None,
+    },
 }
 
-def get_voice_agent(voice_id: str = "default") -> dict:
+def get_voice_agent(voice_id: str = "cimo") -> dict:
     """Get agent configuration for a voice ID."""
-    return VOICE_AGENTS.get(voice_id, VOICE_AGENTS["default"])
+    return VOICE_AGENTS.get(voice_id, VOICE_AGENTS["cimo"])
 
 # === Domain-Specific System Prompts ===
 SYSTEM_PROMPTS = {
@@ -135,7 +130,25 @@ If they ask about pricing or want to buy:
 Say "I can connect you with Dion to discuss pricing and setup for your business. Would you like to share your contact info?" Then collect their name, email, phone, and business name if they agree.
 
 For regular support questions, be helpful and concise. Keep responses under 2-3 sentences when possible.
-You remember the full conversation history across all channels - reference past conversations when relevant."""
+You remember the full conversation history across all channels - reference past conversations when relevant.""",
+
+    "spa": """You are a friendly concierge for The Lumiere Spa, a modern health and wellness spa.
+Keep responses under 2–3 sentences. Be warm, relaxing, and reassuring, like a real spa host.
+
+Core focus:
+- Help guests book treatments and spa day packages
+- Answer questions about availability, prices, and what each treatment includes
+- Suggest appropriate treatments based on what they want to improve (stress, muscle tension, skin glow, recovery, etc.)
+
+Example offerings (use as context, not a script):
+- 60‑minute Swedish massage from €90
+- 90‑minute deep tissue massage from €130
+- Signature Lumiere facial from €110
+- Couples massage packages from €220
+- Spa day pass with sauna, steam room, pool, and relaxation lounge from €70
+
+If guests ask about health or medical questions, gently say you’re not a medical professional and recommend they speak with their doctor.
+Always confirm preferred date, time, and any special requests when helping with bookings."""
 }
 
 # === Domain-Specific Intent Patterns ===
@@ -251,6 +264,24 @@ DOMAIN_INTENTS = {
             "keywords": ["call me back", "my number is", "my email is", "contact me", "reach me"],
             "webhook": "/ghl-contact"
         }
+    },
+    "spa": {
+        "escalate": {
+            "keywords": ["manager", "human", "supervisor", "complaint", "speak to someone"],
+            "webhook": "/escalate"
+        },
+        "book_treatment": {
+            "keywords": ["book", "treatment", "massage", "facial", "spa day", "appointment", "schedule"],
+            "webhook": "/book-appointment"
+        },
+        "pricing": {
+            "keywords": ["price", "cost", "how much", "rates", "packages"],
+            "webhook": "/pricing-inquiry"
+        },
+        "hours": {
+            "keywords": ["open", "hours", "when are you open", "opening times"],
+            "webhook": "/opening-hours"
+        }
     }
 }
 
@@ -261,7 +292,8 @@ DOMAIN_GREETINGS = {
     "healthcare": "Hello, thank you for calling. How may I assist you with your healthcare needs today?",
     "fintech": "Welcome to support. How can I assist you with your account today?",
     "realestate": "Hi! Thanks for reaching out. Are you looking to buy, sell, or rent today?",
-    "generic": "Hi! I'm Omni, an AI assistant that handles voice and chat support. Feel free to test me out, or ask what I can do for your business!"
+    "generic": "Hi! I'm Omni, an AI assistant that handles voice and chat support. Feel free to test me out, or ask what I can do for your business!",
+    "spa": "Hi, welcome to The Lumiere Spa — are you looking to book a treatment or do you have a question?"
 }
 
 

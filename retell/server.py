@@ -337,8 +337,8 @@ async def create_call(request: web.Request) -> web.StreamResponse:
     if not is_valid:
         return _corsify(web.json_response({"error": error}, status=400))
 
-    # Get voice selection (optional)
-    voice_id = request.query.get("voice_id", "default")
+    # Get voice selection (optional). Defaults to Cimo (US English).
+    voice_id = request.query.get("voice_id", "cimo")
     voice_config = get_voice_agent(voice_id)
     agent_id = voice_config["agent_id"]
 
