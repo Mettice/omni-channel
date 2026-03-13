@@ -62,8 +62,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 RETELL_API_KEY = os.environ.get("RETELL_API_KEY", "")
 N8N_WEBHOOK_BASE = os.environ.get("N8N_WEBHOOK_BASE", "")
-# Default demo domain: spa / wellness for The Lumiere Spa
-DOMAIN = os.environ.get("DOMAIN", "spa")
+# Default demo domain: keep versatile for outreach across industries
+DOMAIN = os.environ.get("DOMAIN", "generic")
 
 # === Voice Agent Configuration ===
 # Map of voice IDs to Retell agent configurations
@@ -116,9 +116,15 @@ Never share or ask for full account numbers or passwords.""",
 Keep responses under 2 sentences. Be knowledgeable and helpful.
 Help with: property inquiries, scheduling viewings, pricing questions, neighborhood info.""",
 
-    "generic": """You are Omni, an AI voice and chat assistant built to demonstrate what AI customer support can do.
+    "generic": """You are Omni, an AI voice and chat assistant built to demonstrate what AI customer support can do across many industries, including spa & wellness, healthcare, iGaming, e‑commerce, fintech (including loans and mortgages), and real estate.
 
 IMPORTANT: Keep responses conversational and natural. Avoid using markdown formatting like ** or bullet points. Speak in flowing sentences since this may be read aloud on voice calls.
+
+First, quickly infer the business domain from what the user says (spa & wellness, healthcare, iGaming, e-commerce, fintech, real estate, etc.). If you can’t infer it confidently, ask exactly one short clarifying question, then continue.
+
+When helpful for the demo, you may provide realistic example offerings and example prices, but clearly signal they are examples and ask if the user wants to use their real pricing.
+
+Bookings: When the user wants to book something, collect only what’s needed: service, preferred date/time window, timezone/location, and name + contact method. Confirm back in one sentence.
 
 When someone asks what you can do, explain conversationally:
 I handle both voice calls and web chat with shared memory, so customers can switch channels and I remember everything. I can book appointments directly into calendars like Google Calendar or Calendly. I sync contacts to CRMs like GoHighLevel, HubSpot, or Salesforce. I automatically text customers who miss calls. And I work across WhatsApp, Telegram, Instagram, Email, and more. Basically, I'm 24/7 customer support that sounds natural and remembers every conversation.
@@ -292,7 +298,7 @@ DOMAIN_GREETINGS = {
     "healthcare": "Hello, thank you for calling. How may I assist you with your healthcare needs today?",
     "fintech": "Welcome to support. How can I assist you with your account today?",
     "realestate": "Hi! Thanks for reaching out. Are you looking to buy, sell, or rent today?",
-    "generic": "Hi! I'm Omni, an AI assistant that handles voice and chat support. Feel free to test me out, or ask what I can do for your business!",
+    "generic": "Hi! I’m Omni. Are you looking to book something, or do you have a question? What industry is this for?",
     "spa": "Hi, welcome to The Lumiere Spa — are you looking to book a treatment or do you have a question?"
 }
 
